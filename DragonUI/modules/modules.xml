@@ -101,7 +101,7 @@
     <Include file="bagster\bagster.xml"/>
 
     <!-- Blizzard bag window skin -->
-    <Include file="bags_skin.lua"/>
+    <Script file="bags_skin.lua"/>
     
     <!-- Bag Sort module (sort buttons for bags and bank) -->
     <Script file="bagsort.lua"/>
