@@ -4,26 +4,19 @@ local addon = select(2, ...)
 if not addon then return end
 
 local _G = _G
+local ipairs = ipairs
+local type = type
+local CreateFrame = CreateFrame
 local InCombatLockdown = InCombatLockdown
 local UpdateUIPanelPositions = UpdateUIPanelPositions
 local SetPortraitTexture = SetPortraitTexture
-local TaxiNodeName = TaxiNodeName
+local NumTaxiNodes = NumTaxiNodes
+local TaxiNodePosition = TaxiNodePosition
 
-local TaxiFrameModule = {
+local TaxiModule = {
     initialized = false,
     applied = false,
 }
-
-local isRu = (GetLocale and GetLocale() == "ruRU")
-if addon.L then
-    if rawget(addon.L, "Flight Map") == nil then
-        rawset(addon.L, "Flight Map", isRu and "Карта полетов" or "Flight Map")
-    end
-    if rawget(addon.L, "Retail-style flight master map window") == nil then
-        rawset(addon.L, "Retail-style flight master map window",
-            isRu and "Окно карты распорядителя полетов в стиле Retail" or "Retail-style flight master map window")
-    end
-end
 
 if addon.defaults and addon.defaults.profile and addon.defaults.profile.modules then
     if addon.defaults.profile.modules.taxiframe == nil then
@@ -46,17 +39,21 @@ local function localized(key)
 end
 
 if addon.RegisterModule then
-    addon:RegisterModule("taxiframe", TaxiFrameModule,
+    addon:RegisterModule("taxiframe", TaxiModule,
         localized("Flight Map"),
-        localized("Retail-style flight master map window"),
+        localized("Retail-style flight master map window chrome"),
         { lifecyclePrefix = "TaxiFrame", loadOnce = true })
 end
 
+local DIR = addon._dir
+local ROCK = DIR .. "UI\\ui-background-rock"
+local MARBLE = DIR .. "UI\\ui-background-marble"
+local REDBUTTON = DIR .. "UI\\redbutton2x"
+
 local WIDTH, HEIGHT = 338, 424
-local MAP_X, MAP_Y = 11, -64
-local MAP_W, MAP_H = 316, 352
+local INSET_LEFT, INSET_TOP, INSET_RIGHT, INSET_BOTTOM = 4, -60, -6, 4
+local MAP_X, MAP_Y, MAP_W, MAP_H = 10, -64, 316, 352
 local PANEL_X_NUDGE = 6
-local REDBUTTON = addon._dir .. "UI\\redbutton2x"
 
 local function IsModuleEnabled()
     if addon.IsModuleEnabled then
@@ -83,7 +80,7 @@ local function setAtlas(tex, name)
 end
 
 local function nudgePanel(window)
-    if not window.SetAttribute then return end
+    if not window or not window.SetAttribute then return end
     if window:GetAttribute("UIPanelLayout-xoffset") == PANEL_X_NUDGE then return end
     window:SetAttribute("UIPanelLayout-xoffset", PANEL_X_NUDGE)
     if window:IsShown() and UpdateUIPanelPositions then
@@ -96,12 +93,14 @@ local function dressCloseButton(cb, owner)
     local CP = addon.CharacterPanel
     if CP and CP.ModernizeCloseButton then
         CP.ModernizeCloseButton(cb, owner)
+        cb:SetFrameLevel((owner:GetFrameLevel() or 1) + 22)
         return
     end
     cb._duiModernized = true
     cb:SetSize(24, 24)
     cb:ClearAllPoints()
     cb:SetPoint("TOPRIGHT", owner, "TOPRIGHT", 1, 0)
+    cb:SetFrameLevel((owner:GetFrameLevel() or 1) + 22)
 
     local function dress(getter, l, r, t, b, blend)
         local tex = cb[getter] and cb[getter](cb)
@@ -117,124 +116,133 @@ local function dressCloseButton(cb, owner)
     dress("GetHighlightTexture", 115/256, 151/256, 1/128, 39/128, "ADD")
 end
 
-local function hideStockRegions(frame)
-    local portrait = _G.TaxiPortrait
-    local title = _G.TaxiMerchant
-    local map = _G.TaxiMap
-    for _, region in ipairs({ frame:GetRegions() }) do
-        if region ~= portrait and region ~= title and region ~= map
-            and not region._duiOwned and region.GetObjectType
-            and region:GetObjectType() == "Texture" then
-            region:SetAlpha(0)
-            region:Hide()
+local function stripStockChrome(taxiFrame)
+    local keepPortrait = _G.TaxiPortrait
+    local keepMap = _G.TaxiMap
+    for _, region in ipairs({ taxiFrame:GetRegions() }) do
+        if region.GetObjectType and region:GetObjectType() == "Texture" then
+            if region ~= keepPortrait and region ~= keepMap and not region._duiOwned then
+                region:SetAlpha(0)
+                region:Hide()
+            end
+        end
+    end
+end
+
+local function syncTaxiNodes()
+    local taxiMap = _G.TaxiMap
+    if not taxiMap or not NumTaxiNodes then return end
+    local w, h = taxiMap:GetWidth(), taxiMap:GetHeight()
+    if not (w and h and w > 0 and h > 0) then return end
+    local numNodes = NumTaxiNodes() or 0
+    for i = 1, numNodes do
+        local btn = _G["TaxiButton" .. i]
+        if btn and btn:IsShown() then
+            local x, y = TaxiNodePosition(btn:GetID())
+            if x and y then
+                btn:ClearAllPoints()
+                btn:SetPoint("CENTER", taxiMap, "BOTTOMLEFT", x * w, y * h)
+            end
         end
     end
 end
 
 local function buildTaxiFrame()
-    local frame = _G.TaxiFrame
-    if not frame or frame._duiSkinned then return end
-    frame._duiSkinned = true
+    local taxiFrame = _G.TaxiFrame
+    if not taxiFrame or taxiFrame._duiSkinned then return end
+    taxiFrame._duiSkinned = true
 
-    hideStockRegions(frame)
-
-    frame:SetSize(WIDTH, HEIGHT)
-    if frame.SetHitRectInsets then
-        frame:SetHitRectInsets(0, 0, 0, 0)
+    stripStockChrome(taxiFrame)
+    taxiFrame:SetSize(WIDTH, HEIGHT)
+    if taxiFrame.SetHitRectInsets then
+        taxiFrame:SetHitRectInsets(0, 0, 0, 0)
     end
-    nudgePanel(frame)
+    nudgePanel(taxiFrame)
 
-    local rock = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+    local rock = taxiFrame:CreateTexture(nil, "BACKGROUND", nil, -6)
     rock._duiOwned = true
-    rock:SetTexture(addon._dir .. "UI\\ui-background-rock", "REPEAT", "REPEAT")
+    rock:SetTexture(ROCK, "REPEAT", "REPEAT")
     rock:SetHorizTile(true)
     rock:SetVertTile(true)
-    rock:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -21)
-    rock:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
-    frame._duiRockBg = rock
+    rock:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", 2, -21)
+    rock:SetPoint("BOTTOMRIGHT", taxiFrame, "BOTTOMRIGHT", -2, 2)
 
-    local streaks = frame:CreateTexture(nil, "BORDER")
+    local streaks = taxiFrame:CreateTexture(nil, "BORDER")
     streaks._duiOwned = true
     setAtlas(streaks, "_UI-Frame-TopTileStreaks")
     streaks:SetHorizTile(true)
-    streaks:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -21)
-    streaks:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -2, -64)
-    frame._duiStreaks = streaks
+    streaks:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", 6, -21)
+    streaks:SetPoint("BOTTOMRIGHT", taxiFrame, "TOPRIGHT", -2, -64)
 
-    applySlices(frame, "PortraitFrameTemplate")
+    applySlices(taxiFrame, "PortraitFrameTemplate")
 
     local portrait = _G.TaxiPortrait
     if portrait then
         portrait._duiOwned = true
         portrait:ClearAllPoints()
-        portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", -2, 4)
+        portrait:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", -2, 4)
         portrait:SetSize(56, 56)
         portrait:SetDrawLayer("ARTWORK")
+        portrait:SetAlpha(1)
+        portrait:Show()
     end
 
     local title = _G.TaxiMerchant
     if title then
         title:ClearAllPoints()
-        title:SetPoint("TOPLEFT", frame, "TOPLEFT", 60, -5)
-        title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -24, -5)
+        title:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", 60, -5)
+        title:SetPoint("TOPRIGHT", taxiFrame, "TOPRIGHT", -24, -5)
         title:SetHeight(16)
         title:SetJustifyH("CENTER")
-        title:SetWordWrap(false)
-        title:SetTextColor(1, 0.82, 0)
     end
 
-    if _G.TaxiCloseButton then
-        dressCloseButton(_G.TaxiCloseButton, frame)
-    end
+    dressCloseButton(_G.TaxiCloseButton, taxiFrame)
 
-    -- Move TaxiMap and TaxiRouteMap together so flight nodes and route lines stay aligned.
+    local inset = CreateFrame("Frame", nil, taxiFrame)
+    inset:EnableMouse(false)
+    inset:SetFrameLevel(taxiFrame:GetFrameLevel())
+    inset:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", INSET_LEFT, INSET_TOP)
+    inset:SetPoint("BOTTOMRIGHT", taxiFrame, "BOTTOMRIGHT", INSET_RIGHT, INSET_BOTTOM)
+    applySlices(inset, "InsetFrameTemplate")
+
+    local marble = taxiFrame:CreateTexture(nil, "BACKGROUND", nil, -4)
+    marble._duiOwned = true
+    marble:SetTexture(MARBLE)
+    marble:SetHorizTile(true)
+    marble:SetVertTile(true)
+    marble:SetAllPoints(inset)
+
     local taxiMap = _G.TaxiMap
     if taxiMap then
-        taxiMap._duiOwned = true
         taxiMap:ClearAllPoints()
-        taxiMap:SetPoint("TOPLEFT", frame, "TOPLEFT", MAP_X, MAP_Y)
+        taxiMap:SetPoint("TOPLEFT", taxiFrame, "TOPLEFT", MAP_X, MAP_Y)
         taxiMap:SetSize(MAP_W, MAP_H)
+        taxiMap:SetDrawLayer("ARTWORK")
     end
 
     local routeMap = _G.TaxiRouteMap
-    if routeMap then
+    if routeMap and taxiMap then
         routeMap:ClearAllPoints()
-        if taxiMap then
-            routeMap:SetAllPoints(taxiMap)
-        else
-            routeMap:SetPoint("TOPLEFT", frame, "TOPLEFT", MAP_X, MAP_Y)
-            routeMap:SetSize(MAP_W, MAP_H)
-        end
+        routeMap:SetAllPoints(taxiMap)
+        routeMap:SetSize(MAP_W, MAP_H)
+        routeMap:SetFrameLevel(inset:GetFrameLevel() + 2)
     end
 
-    local inset = CreateFrame("Frame", nil, frame)
-    inset:EnableMouse(false)
-    if taxiMap then
-        inset:SetPoint("TOPLEFT", taxiMap, "TOPLEFT", -3, 3)
-        inset:SetPoint("BOTTOMRIGHT", taxiMap, "BOTTOMRIGHT", 3, -3)
-    else
-        inset:SetPoint("TOPLEFT", frame, "TOPLEFT", MAP_X - 3, MAP_Y + 3)
-        inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 5)
-    end
-    inset:SetFrameLevel((frame:GetFrameLevel() or 1) + 2)
-    applySlices(inset, "InsetFrameTemplate")
-    frame._duiInset = inset
+    _G.TAXIMAP_WIDTH = MAP_W
+    _G.TAXIMAP_HEIGHT = MAP_H
 
-    frame:HookScript("OnShow", function()
-        if not IsModuleEnabled() then return end
-        if portrait and SetPortraitTexture then
-            SetPortraitTexture(portrait, "npc")
+    taxiFrame:HookScript("OnShow", function()
+        if _G.TaxiPortrait then
+            SetPortraitTexture(_G.TaxiPortrait, "npc")
         end
-        if title and (not title:GetText() or title:GetText() == "") then
-            title:SetText(UnitName("npc") or localized("Flight Map"))
-        end
+        syncTaxiNodes()
     end)
 end
 
 function addon.ApplyTaxiFrameSystem()
     if not IsModuleEnabled() then return end
-    TaxiFrameModule.initialized = true
-    TaxiFrameModule.applied = true
+    TaxiModule.initialized = true
+    TaxiModule.applied = true
     if InCombatLockdown() and addon.CombatQueue then
         addon.CombatQueue:Add("taxiframe_apply", buildTaxiFrame)
         return
@@ -243,7 +251,7 @@ function addon.ApplyTaxiFrameSystem()
 end
 
 function addon.RestoreTaxiFrameSystem()
-    TaxiFrameModule.applied = false
+    TaxiModule.applied = false
 end
 
 function addon.RefreshTaxiFrameSystem()
@@ -263,5 +271,6 @@ boot:SetScript("OnEvent", function(_, event)
         addon.ApplyTaxiFrameSystem()
     elseif event == "TAXIMAP_OPENED" then
         buildTaxiFrame()
+        syncTaxiNodes()
     end
 end)

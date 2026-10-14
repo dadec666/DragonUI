@@ -5,7 +5,6 @@ if not addon then return end
 
 local _G = _G
 local ipairs = ipairs
-local pairs = pairs
 local unpack = unpack
 local type = type
 local math_floor = math.floor
@@ -29,28 +28,6 @@ local MailModule = {
     applied = false,
 }
 
-local isRu = (GetLocale and GetLocale() == "ruRU")
-local DEFAULT_STRINGS = {
-    ["Mail"] = isRu and "Почта" or "Mail",
-    ["Retail-style mail window with Open All button"] = isRu
-        and "Окно почты в стиле Retail с кнопкой «Открыть все»"
-        or "Retail-style mail window with Open All button",
-    ["Open All"] = isRu and "Открыть все" or "Open All",
-    ["Opening..."] = isRu and "Открытие..." or "Opening...",
-    ["Loot all mail attachments and gold (skips COD mail)"] = isRu
-        and "Забрать все вложения и золото из писем (пропускает наложенный платеж)"
-        or "Loot all mail attachments and gold (skips COD mail)",
-    ["Inventory is full."] = isRu and "Инвентарь полон." or "Inventory is full.",
-}
-
-if addon.L then
-    for k, v in pairs(DEFAULT_STRINGS) do
-        if rawget(addon.L, k) == nil then
-            rawset(addon.L, k, v)
-        end
-    end
-end
-
 if addon.defaults and addon.defaults.profile and addon.defaults.profile.modules then
     if addon.defaults.profile.modules.mail == nil then
         addon.defaults.profile.modules.mail = { enabled = true }
@@ -66,7 +43,7 @@ local function localized(key)
     local strings = addon.L
     local text = strings and strings[key]
     if type(text) ~= "string" or text == "" then
-        return DEFAULT_STRINGS[key] or key
+        return key
     end
     return text
 end
@@ -85,7 +62,6 @@ local REDBUTTON = DIR .. "UI\\redbutton2x"
 local PAGE_BG = DIR .. "Merchant\\pagebutton-background"
 local PAGE_HILITE = DIR .. "Merchant\\pagebutton-hover"
 local TAB_TEX = DIR .. "UI\\uiframetabs"
-local MAIL_ICON = "Interface\\MailFrame\\Mail-Icon"
 local PAGE_BTN_TEX = {
     InboxPrevPageButton = {
         up = DIR .. "Merchant\\pagebutton-prev-normal",
@@ -101,8 +77,8 @@ local PAGE_BTN_TEX = {
 
 local WIDTH, HEIGHT = 338, 424
 local INSET_INBOX = { 4, -60, -6, 4 }
-local INSET_SEND  = { 4, -80, -6, 26 }
-local INSET_OPEN  = { 4, -80, -6, 26 }
+local INSET_SEND  = { 4, -80, -6, 28 }
+local INSET_OPEN  = { 4, -80, -6, 28 }
 local PAGE_X, PAGE_Y, PAGE_W, PAGE_H = 7, -63, 321, 354
 local PANEL_X_NUDGE = 6
 local ATTACHMENTS_MAX = _G.ATTACHMENTS_MAX or 16
@@ -121,6 +97,7 @@ local HL_LEFT_TC   = { 0.015625, 0.5625, 0.816406, 0.933594 }
 local HL_RIGHT_TC  = { 0.015625, 0.59375, 0.667969, 0.785156 }
 local HL_MIDDLE_TC = { 0, 0.015625, 0.175781, 0.292969 }
 local TEXT_ACTIVE_DROP = -7
+local TEXT_NUDGE_X = -2
 local TAB_START_X = 11
 local TAB_GAP = 1
 
@@ -202,25 +179,33 @@ local function placeInset(inset, window, bounds)
     inset:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", bounds[3], bounds[4])
 end
 
-local function findMailIconRegion(window)
-    if not window or not window.GetRegions then return nil end
+local function neuterTexture(tex)
+    if not tex or tex._duiNeutered then return end
+    tex._duiNeutered = true
+    tex:SetAlpha(0)
+    tex:Hide()
+    tex.Show = tex.Hide
+end
+
+local function hideMailIcons(window)
+    if not window or not window.GetRegions then return end
     for _, region in ipairs({ window:GetRegions() }) do
-        if region.GetObjectType and region:GetObjectType() == "Texture" then
+        if region.GetObjectType and region:GetObjectType() == "Texture" and not region._duiOwned then
             local tex = region:GetTexture()
             if type(tex) == "string" and tex:lower():find("mail%-icon") then
-                return region
+                neuterTexture(region)
             end
         end
     end
-    return nil
 end
 
-local function paintWindowChrome(window, portrait, closeBtn, insetBounds)
+local function paintWindowChrome(window, closeBtn, insetBounds)
     window:SetSize(WIDTH, HEIGHT)
     if window.SetHitRectInsets then
         window:SetHitRectInsets(0, 0, 0, 0)
     end
     nudgePanel(window)
+    hideMailIcons(window)
 
     local rock = window:CreateTexture(nil, "BACKGROUND", nil, -6)
     rock._duiOwned = true
@@ -235,24 +220,11 @@ local function paintWindowChrome(window, portrait, closeBtn, insetBounds)
     streaks._duiOwned = true
     setAtlas(streaks, "_UI-Frame-TopTileStreaks")
     streaks:SetHorizTile(true)
-    streaks:SetPoint("TOPLEFT", window, "TOPLEFT", 6, -21)
+    streaks:SetPoint("TOPLEFT", window, "TOPLEFT", 2, -21)
     streaks:SetPoint("BOTTOMRIGHT", window, "TOPRIGHT", -2, -64)
     window._duiStreaks = streaks
 
-    applySlices(window, "PortraitFrameTemplate")
-
-    if not portrait then
-        portrait = window:CreateTexture(nil, "ARTWORK")
-        portrait:SetTexture(MAIL_ICON)
-    end
-    portrait._duiOwned = true
-    portrait:ClearAllPoints()
-    portrait:SetPoint("TOPLEFT", window, "TOPLEFT", -2, 4)
-    portrait:SetSize(56, 56)
-    portrait:SetDrawLayer("ARTWORK")
-    portrait:SetAlpha(1)
-    portrait:Show()
-    window._duiPortrait = portrait
+    applySlices(window, "NoPortraitFrameTemplate")
 
     if closeBtn then
         dressCloseButton(closeBtn, window)
@@ -283,10 +255,33 @@ local function hideScrollBarBackground(scrollFrame)
         if region.GetObjectType and region:GetObjectType() == "Texture" then
             local tex = region:GetTexture()
             if type(tex) == "string" and tex:lower():find("ui%-character%-scrollbar") then
-                region:SetAlpha(0)
-                region:Hide()
+                neuterTexture(region)
             end
         end
+    end
+end
+
+local function styleMailScrollBar(scrollFrame, ownerFrame)
+    if not scrollFrame or not ownerFrame then return end
+    hideScrollBarBackground(scrollFrame)
+    local CP = addon.CharacterPanel
+    if CP and CP.ReskinScrollBar then
+        CP.ReskinScrollBar(scrollFrame, ownerFrame, 83, -11, 143, true)
+    end
+    local bar = _G[scrollFrame:GetName() .. "ScrollBar"]
+    if bar then
+        -- Anchor top and bottom to scrollFrame so dynamic height updates keep the bar aligned.
+        bar:ClearAllPoints()
+        bar:SetPoint("TOP", scrollFrame, "TOP", 0, -7)
+        bar:SetPoint("BOTTOM", scrollFrame, "BOTTOM", 0, 7)
+        bar:SetPoint("RIGHT", ownerFrame, "RIGHT", -11, 0)
+    end
+end
+
+local function syncMailScrollThumb(scrollFrame)
+    local CP = addon.CharacterPanel
+    if CP and CP.SyncScrollThumb and scrollFrame then
+        CP.SyncScrollThumb(scrollFrame)
     end
 end
 
@@ -302,6 +297,21 @@ local function clampHorizontalBars(parentFrame)
     end
 end
 
+local function stretchEditBoxBorder(editBox)
+    if not editBox or not editBox.GetName then return end
+    local name = editBox:GetName()
+    local left = _G[name .. "Left"]
+    local middle = _G[name .. "Middle"]
+    local right = _G[name .. "Right"]
+    if left and middle and right then
+        right:ClearAllPoints()
+        right:SetPoint("TOPRIGHT", editBox, "TOPRIGHT", 0, 0)
+        middle:ClearAllPoints()
+        middle:SetPoint("TOPLEFT", left, "TOPRIGHT", 0, 0)
+        middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", 0, 0)
+    end
+end
+
 local function reskinPageNav(btnName)
     local btn = _G[btnName]
     local set = PAGE_BTN_TEX[btnName]
@@ -309,26 +319,20 @@ local function reskinPageNav(btnName)
 
     btn:SetSize(28, 28)
 
-    local function retexture(getter, path, blend)
-        local t = path and btn[getter] and btn[getter](btn)
-        if not t then return end
-        t:SetTexture(path)
-        if blend then t:SetBlendMode(blend) end
+    if not btn._duiPageBg then
+        local bg = btn:CreateTexture(nil, "BACKGROUND")
+        bg:SetTexture(PAGE_BG)
+        bg:SetAllPoints(btn)
+        btn._duiPageBg = bg
     end
 
-    retexture("GetNormalTexture", set.up)
-    retexture("GetPushedTexture", set.down)
-    retexture("GetDisabledTexture", set.disabled)
-    retexture("GetHighlightTexture", PAGE_HILITE, "ADD")
-
-    for _, r in ipairs({ btn:GetRegions() }) do
-        if r.GetObjectType and r:GetObjectType() == "Texture" then
-            local layer = r:GetDrawLayer()
-            if layer == "BACKGROUND" or layer == "ARTWORK" then
-                r:SetTexture(PAGE_BG)
-                r:Show()
-            end
-        end
+    btn:SetNormalTexture(set.up)
+    btn:SetPushedTexture(set.down)
+    btn:SetDisabledTexture(set.disabled)
+    btn:SetHighlightTexture(PAGE_HILITE, "ADD")
+    local hl = btn:GetHighlightTexture()
+    if hl then
+        hl:SetBlendMode("ADD")
     end
 end
 
@@ -439,7 +443,7 @@ local function syncMailTabState(tab)
     local text = _G[name .. "Text"]
     if text then
         text:ClearAllPoints()
-        text:SetPoint("CENTER", tab, "CENTER", 0, selected and TEXT_ACTIVE_DROP or 0)
+        text:SetPoint("CENTER", tab, "CENTER", TEXT_NUDGE_X, selected and TEXT_ACTIVE_DROP or 0)
     end
 
     if tab._duiHighlight then
@@ -464,7 +468,7 @@ local function resizeMailTab(tab)
     local text = _G[tab:GetName() .. "Text"]
     if not text then return end
 
-    -- Clear Blizzard's FriendsFrameTabTemplate 88px clamp so Russian labels never truncate.
+    -- Clear FriendsFrameTabTemplate 88px clamp so localized labels never truncate.
     text:SetWidth(0)
     local w = math_max(TAB_MIN_W, (text:GetStringWidth() or 0) + TAB_TEXT_PAD)
     tab:SetWidth(math_floor(w + 0.5))
@@ -724,13 +728,16 @@ local function afterSendMailUpdate()
         _G.SendMailHorizontalBarLeft2:SetPoint("TOPLEFT", sendFrame, "BOTTOMLEFT", 4, 96 + height)
     end
     if _G.SendStationeryBackgroundLeft then
+        _G.SendStationeryBackgroundLeft:SetWidth(256)
         _G.SendStationeryBackgroundLeft:SetHeight(math_min(scrollHeight, 256))
         _G.SendStationeryBackgroundLeft:SetTexCoord(0, 1.0, 0, math_min(scrollHeight, 256) / 256)
     end
     if _G.SendStationeryBackgroundRight then
+        _G.SendStationeryBackgroundRight:SetWidth(68)
         _G.SendStationeryBackgroundRight:SetHeight(math_min(scrollHeight, 256))
         _G.SendStationeryBackgroundRight:SetTexCoord(0, 1.0, 0, math_min(scrollHeight, 256) / 256)
     end
+    syncMailScrollThumb(_G.SendMailScrollFrame)
 
     local cx, cy = 0, ranks - 1
     for i = 1, ATTACHMENTS_MAX_SEND do
@@ -754,17 +761,16 @@ local function afterOpenMailUpdate()
     local id = inbox and inbox.openMailID
     if not (openFrame and id and id > 0) then return end
 
-    local _, stationery = GetInboxHeaderInfo(id)
-    if openFrame._duiPortrait then
-        openFrame._duiPortrait:SetTexture(stationery or MAIL_ICON)
+    if _G.OpenMailFrameIcon then
+        neuterTexture(_G.OpenMailFrameIcon)
     end
 
     local sender = _G.OpenMailSender
     if sender and _G.OpenMailSenderLabel then
         sender:ClearAllPoints()
-        sender:SetPoint("LEFT", _G.OpenMailSenderLabel, "RIGHT", 5, 0)
+        sender:SetPoint("LEFT", _G.OpenMailSenderLabel, "RIGHT", 6, 0)
         if _G.OpenMailReportSpamButton and _G.OpenMailReportSpamButton:IsShown() then
-            sender:SetPoint("RIGHT", _G.OpenMailReportSpamButton, "LEFT", -5, 0)
+            sender:SetPoint("RIGHT", _G.OpenMailReportSpamButton, "LEFT", -6, 0)
         else
             sender:SetPoint("RIGHT", openFrame, "RIGHT", -12, 0)
         end
@@ -803,13 +809,16 @@ local function afterOpenMailUpdate()
         _G.OpenMailHorizontalBarLeft:SetPoint("TOPLEFT", openFrame, "BOTTOMLEFT", 4, 39 + height)
     end
     if _G.OpenStationeryBackgroundLeft then
+        _G.OpenStationeryBackgroundLeft:SetWidth(256)
         _G.OpenStationeryBackgroundLeft:SetHeight(scrollHeight)
         _G.OpenStationeryBackgroundLeft:SetTexCoord(0, 1.0, 0, math_min(scrollHeight, 256) / 256)
     end
     if _G.OpenStationeryBackgroundRight then
+        _G.OpenStationeryBackgroundRight:SetWidth(68)
         _G.OpenStationeryBackgroundRight:SetHeight(scrollHeight)
         _G.OpenStationeryBackgroundRight:SetTexCoord(0, 1.0, 0, math_min(scrollHeight, 256) / 256)
     end
+    syncMailScrollThumb(_G.OpenMailScrollFrame)
 
     attachText:ClearAllPoints()
     if (openFrame.itemButtonCount or 0) > 0 then
@@ -848,8 +857,7 @@ local function hideMailChromePieces()
     }) do
         local tex = _G[name]
         if tex then
-            tex:SetAlpha(0)
-            tex:Hide()
+            neuterTexture(tex)
         end
     end
 end
@@ -858,6 +866,7 @@ local function syncMailTabView()
     local mailFrame = _G.MailFrame
     if not mailFrame or not mailFrame._duiInset then return end
     hideMailChromePieces()
+    hideMailIcons(mailFrame)
     local selected = (PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(mailFrame))
         or mailFrame.selectedTab or 1
     placeInset(mailFrame._duiInset, mailFrame, selected == 2 and INSET_SEND or INSET_INBOX)
@@ -869,10 +878,9 @@ local function buildMailFrame()
     if not mailFrame or mailFrame._duiSkinned then return end
     mailFrame._duiSkinned = true
 
-    local portrait = findMailIconRegion(mailFrame)
     hideMailChromePieces()
 
-    local inset = paintWindowChrome(mailFrame, portrait, _G.InboxCloseButton, INSET_INBOX)
+    local inset = paintWindowChrome(mailFrame, _G.InboxCloseButton, INSET_INBOX)
 
     local inbox = _G.InboxFrame
     if inbox then
@@ -890,7 +898,7 @@ local function buildMailFrame()
 
         if _G.InboxTitleText then
             _G.InboxTitleText:ClearAllPoints()
-            _G.InboxTitleText:SetPoint("TOPLEFT", mailFrame, "TOPLEFT", 60, -5)
+            _G.InboxTitleText:SetPoint("TOPLEFT", mailFrame, "TOPLEFT", 24, -5)
             _G.InboxTitleText:SetPoint("TOPRIGHT", mailFrame, "TOPRIGHT", -24, -5)
             _G.InboxTitleText:SetHeight(16)
             _G.InboxTitleText:SetJustifyH("CENTER")
@@ -898,18 +906,17 @@ local function buildMailFrame()
 
         if _G.InboxTooMuchMail then
             _G.InboxTooMuchMail:ClearAllPoints()
-            _G.InboxTooMuchMail:SetPoint("TOP", inbox, "TOP", 10, -24)
+            _G.InboxTooMuchMail:SetPoint("TOP", inbox, "TOP", 0, -24)
         end
 
         if _G.InboxCurrentPage then
-            _G.InboxCurrentPage:SetAlpha(0)
-            _G.InboxCurrentPage:Hide()
+            neuterTexture(_G.InboxCurrentPage)
         end
 
-        -- Keep MailItem1..7 stock 305x45 geometry and MailItemBorder artwork intact.
+        -- Center 305x45 MailItem1..7 rows inside the 321px parchment page.
         if _G.MailItem1 then
             _G.MailItem1:ClearAllPoints()
-            _G.MailItem1:SetPoint("TOPLEFT", inbox, "TOPLEFT", 13, -68)
+            _G.MailItem1:SetPoint("TOPLEFT", inbox, "TOPLEFT", 15, -67)
         end
 
         reskinPageNav("InboxPrevPageButton")
@@ -918,11 +925,11 @@ local function buildMailFrame()
         local prevBtn = _G.InboxPrevPageButton
         if prevBtn then
             prevBtn:ClearAllPoints()
-            prevBtn:SetPoint("BOTTOMLEFT", inbox, "BOTTOMLEFT", 13, 9)
+            prevBtn:SetPoint("BOTTOMLEFT", inbox, "BOTTOMLEFT", 15, 10)
             for _, r in ipairs({ prevBtn:GetRegions() }) do
                 if r.GetObjectType and r:GetObjectType() == "FontString" then
                     r:ClearAllPoints()
-                    r:SetPoint("LEFT", prevBtn, "RIGHT", 3, 0)
+                    r:SetPoint("LEFT", prevBtn, "RIGHT", 4, 0)
                 end
             end
         end
@@ -930,11 +937,11 @@ local function buildMailFrame()
         local nextBtn = _G.InboxNextPageButton
         if nextBtn then
             nextBtn:ClearAllPoints()
-            nextBtn:SetPoint("BOTTOMRIGHT", inbox, "BOTTOMRIGHT", -13, 9)
+            nextBtn:SetPoint("BOTTOMRIGHT", inbox, "BOTTOMRIGHT", -18, 10)
             for _, r in ipairs({ nextBtn:GetRegions() }) do
                 if r.GetObjectType and r:GetObjectType() == "FontString" then
                     r:ClearAllPoints()
-                    r:SetPoint("RIGHT", nextBtn, "LEFT", -3, 0)
+                    r:SetPoint("RIGHT", nextBtn, "LEFT", -4, 0)
                 end
             end
         end
@@ -942,7 +949,7 @@ local function buildMailFrame()
         if not openAllBtn then
             openAllBtn = CreateFrame("Button", "DragonUIOpenAllMailButton", inbox, "UIPanelButtonTemplate")
             skinActionButton(openAllBtn, 104, 22)
-            openAllBtn:SetPoint("CENTER", inbox, "BOTTOM", 0, 23)
+            openAllBtn:SetPoint("CENTER", inbox, "BOTTOM", -1, 24)
             openAllBtn:SetText(localized("Open All"))
             openAllBtn:SetScript("OnClick", StartOpenAll)
             openAllBtn:SetScript("OnEnter", function(self)
@@ -968,7 +975,7 @@ local function buildMailFrame()
 
         if _G.SendMailTitleText then
             _G.SendMailTitleText:ClearAllPoints()
-            _G.SendMailTitleText:SetPoint("TOPLEFT", mailFrame, "TOPLEFT", 60, -5)
+            _G.SendMailTitleText:SetPoint("TOPLEFT", mailFrame, "TOPLEFT", 24, -5)
             _G.SendMailTitleText:SetPoint("TOPRIGHT", mailFrame, "TOPRIGHT", -24, -5)
             _G.SendMailTitleText:SetHeight(16)
             _G.SendMailTitleText:SetJustifyH("CENTER")
@@ -980,48 +987,72 @@ local function buildMailFrame()
         end
 
         if _G.SendMailNameEditBox then
-            _G.SendMailNameEditBox:SetSize(109, 20)
+            _G.SendMailNameEditBox:SetSize(115, 20)
             _G.SendMailNameEditBox:ClearAllPoints()
-            _G.SendMailNameEditBox:SetPoint("TOPLEFT", sendFrame, "TOPLEFT", 90, -30)
+            _G.SendMailNameEditBox:SetPoint("TOPLEFT", sendFrame, "TOPLEFT", 68, -29)
+            stretchEditBoxBorder(_G.SendMailNameEditBox)
         end
 
         if _G.SendMailSubjectEditBox and _G.SendMailNameEditBox then
-            _G.SendMailSubjectEditBox:SetSize(220, 20)
+            _G.SendMailSubjectEditBox:SetSize(255, 20)
             _G.SendMailSubjectEditBox:ClearAllPoints()
             _G.SendMailSubjectEditBox:SetPoint("TOPLEFT", _G.SendMailNameEditBox, "BOTTOMLEFT", 0, -4)
+            stretchEditBoxBorder(_G.SendMailSubjectEditBox)
         end
 
+        -- SmallMoneyFrameTemplate parks its copper coin 13px inside its right edge.
         if _G.SendMailCostMoneyFrame then
             _G.SendMailCostMoneyFrame:ClearAllPoints()
-            _G.SendMailCostMoneyFrame:SetPoint("TOPRIGHT", sendFrame, "TOPRIGHT", -8, -34)
+            _G.SendMailCostMoneyFrame:SetPoint("RIGHT", sendFrame, "TOPRIGHT", -2, -39)
         end
 
         if _G.SendMailScrollFrame then
-            hideScrollBarBackground(_G.SendMailScrollFrame)
             _G.SendMailScrollFrame:ClearAllPoints()
-            _G.SendMailScrollFrame:SetPoint("TOPLEFT", sendFrame, "TOPLEFT", 8, -83)
-            if _G.ForeverUI and _G.ForeverUI.SkinScrollBar and _G.SendMailScrollFrameScrollBar then
-                _G.ForeverUI.SkinScrollBar(_G.SendMailScrollFrameScrollBar, { scrollFrame = _G.SendMailScrollFrame })
-            elseif addon.CharacterPanel and addon.CharacterPanel.ReskinScrollBar then
-                addon.CharacterPanel.ReskinScrollBar(_G.SendMailScrollFrame, sendFrame, 84, -12, 165, true)
-            end
+            _G.SendMailScrollFrame:SetPoint("TOPLEFT", sendFrame, "TOPLEFT", 7, -83)
+            styleMailScrollBar(_G.SendMailScrollFrame, sendFrame)
         end
 
         if _G.SendMailMoneyButton then
             _G.SendMailMoneyButton:ClearAllPoints()
-            _G.SendMailMoneyButton:SetPoint("BOTTOMLEFT", sendFrame, "BOTTOMLEFT", 15, 37)
+            _G.SendMailMoneyButton:SetPoint("BOTTOMLEFT", sendFrame, "BOTTOMLEFT", 10, 38)
         end
 
-        if _G.SendMailSendMoneyButton and _G.SendMailMoney then
+        if _G.SendMailMoney and _G.SendMailMoneyText then
+            _G.SendMailMoney:ClearAllPoints()
+            _G.SendMailMoney:SetPoint("TOPLEFT", _G.SendMailMoneyText, "BOTTOMLEFT", 2, -4)
+        end
+        if _G.SendMailMoneyGold then
+            _G.SendMailMoneyGold:SetWidth(48)
+            stretchEditBoxBorder(_G.SendMailMoneyGold)
+        end
+        if _G.SendMailMoneySilver and _G.SendMailMoneyGold then
+            _G.SendMailMoneySilver:SetWidth(28)
+            _G.SendMailMoneySilver:ClearAllPoints()
+            _G.SendMailMoneySilver:SetPoint("LEFT", _G.SendMailMoneyGold, "RIGHT", 16, 0)
+            stretchEditBoxBorder(_G.SendMailMoneySilver)
+        end
+        if _G.SendMailMoneyCopper and _G.SendMailMoneySilver then
+            _G.SendMailMoneyCopper:SetWidth(28)
+            _G.SendMailMoneyCopper:ClearAllPoints()
+            _G.SendMailMoneyCopper:SetPoint("LEFT", _G.SendMailMoneySilver, "RIGHT", 16, 0)
+            stretchEditBoxBorder(_G.SendMailMoneyCopper)
+        end
+
+        -- Anchor radio buttons left of the right border so localized COD labels never overflow.
+        if _G.SendMailSendMoneyButton then
             _G.SendMailSendMoneyButton:ClearAllPoints()
-            _G.SendMailSendMoneyButton:SetPoint("TOPLEFT", _G.SendMailMoney, "TOPRIGHT", 16, 12)
+            _G.SendMailSendMoneyButton:SetPoint("TOPLEFT", sendFrame, "BOTTOMLEFT", 174, 73)
+        end
+        if _G.SendMailCODButton and _G.SendMailSendMoneyButton then
+            _G.SendMailCODButton:ClearAllPoints()
+            _G.SendMailCODButton:SetPoint("TOPLEFT", _G.SendMailSendMoneyButton, "BOTTOMLEFT", 0, -3)
         end
 
         local moneyInset = CreateFrame("Frame", nil, sendFrame)
         moneyInset:EnableMouse(false)
         moneyInset:SetFrameLevel(sendFrame:GetFrameLevel())
         moneyInset:SetPoint("BOTTOMLEFT", sendFrame, "BOTTOMLEFT", 4, 4)
-        moneyInset:SetPoint("TOPRIGHT", sendFrame, "BOTTOMLEFT", 170, 26)
+        moneyInset:SetPoint("TOPRIGHT", sendFrame, "BOTTOMLEFT", 168, 26)
         applySlices(moneyInset, "InsetFrameTemplate")
         local moneyMarble = sendFrame:CreateTexture(nil, "BACKGROUND", nil, -2)
         moneyMarble._duiOwned = true
@@ -1030,15 +1061,19 @@ local function buildMailFrame()
         moneyMarble:SetVertTile(true)
         moneyMarble:SetAllPoints(moneyInset)
 
+        -- Overhangs moneyInset by 7px so SmallMoneyFrameTemplate's 13px right pad leaves 6px inside the rim.
         if _G.SendMailMoneyFrame then
             _G.SendMailMoneyFrame:ClearAllPoints()
-            _G.SendMailMoneyFrame:SetPoint("BOTTOMRIGHT", sendFrame, "BOTTOMLEFT", 166, 7)
+            _G.SendMailMoneyFrame:SetPoint("BOTTOMRIGHT", moneyInset, "BOTTOMRIGHT", 7, 5)
             _G.SendMailMoneyFrame:SetFrameLevel(sendFrame:GetFrameLevel() + 2)
+            if addon.RegisterBlizzardMoneyFrame then
+                addon.RegisterBlizzardMoneyFrame(_G.SendMailMoneyFrame)
+            end
         end
 
         if _G.SendMailCancelButton then
             _G.SendMailCancelButton:ClearAllPoints()
-            _G.SendMailCancelButton:SetPoint("BOTTOMRIGHT", sendFrame, "BOTTOMRIGHT", -7, 4)
+            _G.SendMailCancelButton:SetPoint("BOTTOMRIGHT", sendFrame, "BOTTOMRIGHT", -6, 4)
             skinActionButton(_G.SendMailCancelButton, 78, 22)
         end
         if _G.SendMailMailButton and _G.SendMailCancelButton then
@@ -1074,23 +1109,23 @@ local function buildMailFrame()
         openFrame._duiSkinned = true
 
         for _, name in ipairs({
+            "OpenMailFrameIcon",
             "OpenMailFrameTopLeft", "OpenMailFrameTopRight", "OpenMailFrameBotLeft", "OpenMailFrameBotRight",
         }) do
             local tex = _G[name]
             if tex then
-                tex:SetAlpha(0)
-                tex:Hide()
+                neuterTexture(tex)
             end
         end
         clampHorizontalBars(openFrame)
 
-        local openInset = paintWindowChrome(openFrame, _G.OpenMailFrameIcon, _G.OpenMailCloseButton, INSET_OPEN)
+        local openInset = paintWindowChrome(openFrame, _G.OpenMailCloseButton, INSET_OPEN)
         openFrame:ClearAllPoints()
         openFrame:SetPoint("TOPLEFT", mailFrame, "TOPRIGHT", 10, 0)
 
         if _G.OpenMailTitleText then
             _G.OpenMailTitleText:ClearAllPoints()
-            _G.OpenMailTitleText:SetPoint("TOPLEFT", openFrame, "TOPLEFT", 60, -5)
+            _G.OpenMailTitleText:SetPoint("TOPLEFT", openFrame, "TOPLEFT", 24, -5)
             _G.OpenMailTitleText:SetPoint("TOPRIGHT", openFrame, "TOPRIGHT", -24, -5)
             _G.OpenMailTitleText:SetHeight(16)
             _G.OpenMailTitleText:SetJustifyH("CENTER")
@@ -1098,30 +1133,30 @@ local function buildMailFrame()
 
         if _G.OpenMailSenderLabel then
             _G.OpenMailSenderLabel:ClearAllPoints()
-            _G.OpenMailSenderLabel:SetPoint("TOPRIGHT", openFrame, "TOPLEFT", 105, -33)
+            _G.OpenMailSenderLabel:SetPoint("TOPRIGHT", openFrame, "TOPLEFT", 68, -34)
         end
         if _G.OpenMailSubjectLabel then
             _G.OpenMailSubjectLabel:ClearAllPoints()
-            _G.OpenMailSubjectLabel:SetPoint("TOPRIGHT", openFrame, "TOPLEFT", 105, -55)
+            _G.OpenMailSubjectLabel:SetPoint("TOPRIGHT", openFrame, "TOPLEFT", 68, -54)
         end
         if _G.OpenMailSender then
             _G.OpenMailSender:SetJustifyH("LEFT")
         end
+        if _G.OpenMailSubject and _G.OpenMailSubjectLabel then
+            _G.OpenMailSubject:ClearAllPoints()
+            _G.OpenMailSubject:SetPoint("TOPLEFT", _G.OpenMailSubjectLabel, "TOPRIGHT", 6, -2)
+            _G.OpenMailSubject:SetPoint("RIGHT", openFrame, "RIGHT", -12, 0)
+        end
         if _G.OpenMailReportSpamButton then
             _G.OpenMailReportSpamButton:ClearAllPoints()
-            _G.OpenMailReportSpamButton:SetPoint("TOPRIGHT", openFrame, "TOPRIGHT", -12, -32)
+            _G.OpenMailReportSpamButton:SetPoint("TOPRIGHT", openFrame, "TOPRIGHT", -10, -30)
             skinActionButton(_G.OpenMailReportSpamButton, 106, 22)
         end
 
         if _G.OpenMailScrollFrame then
-            hideScrollBarBackground(_G.OpenMailScrollFrame)
             _G.OpenMailScrollFrame:ClearAllPoints()
-            _G.OpenMailScrollFrame:SetPoint("TOPLEFT", openFrame, "TOPLEFT", 8, -84)
-            if _G.ForeverUI and _G.ForeverUI.SkinScrollBar and _G.OpenMailScrollFrameScrollBar then
-                _G.ForeverUI.SkinScrollBar(_G.OpenMailScrollFrameScrollBar, { scrollFrame = _G.OpenMailScrollFrame })
-            elseif addon.CharacterPanel and addon.CharacterPanel.ReskinScrollBar then
-                addon.CharacterPanel.ReskinScrollBar(_G.OpenMailScrollFrame, openFrame, 84, -12, 110, true)
-            end
+            _G.OpenMailScrollFrame:SetPoint("TOPLEFT", openFrame, "TOPLEFT", 7, -83)
+            styleMailScrollBar(_G.OpenMailScrollFrame, openFrame)
         end
 
         if _G.OpenMailCancelButton then
