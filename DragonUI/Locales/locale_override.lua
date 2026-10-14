@@ -46,3 +46,30 @@ end
 -- Exposed for the options panel / dropdown UI.
 addon.SUPPORTED_LOCALES = SUPPORTED
 addon.CLIENT_LOCALE = CLIENT_LOCALE
+
+local AceLocale = LibStub and LibStub("AceLocale-3.0-DragonUI", true)
+if AceLocale then
+    local L_en = AceLocale:NewLocale("DragonUI", "enUS", true)
+    if L_en then
+        L_en["Flight Map"] = true
+        L_en["Retail-style flight master map window chrome"] = true
+        L_en["Mail"] = true
+        L_en["Retail-style mail window with Open All button"] = true
+        L_en["Open All"] = true
+        L_en["Opening..."] = true
+        L_en["Loot all mail attachments and gold (skips COD mail)"] = true
+        L_en["Inventory is full."] = true
+    end
+
+    local L_ru = AceLocale:NewLocale("DragonUI", "ruRU")
+    if L_ru then
+        L_ru["Flight Map"] = "Карта полетов"
+        L_ru["Retail-style flight master map window chrome"] = "Окно распорядителя полетов в стиле Retail"
+        L_ru["Mail"] = "Почта"
+        L_ru["Retail-style mail window with Open All button"] = "Окно почты в стиле Retail с кнопкой «Открыть все»"
+        L_ru["Open All"] = "Открыть все"
+        L_ru["Opening..."] = "Открытие..."
+        L_ru["Loot all mail attachments and gold (skips COD mail)"] = "Забрать все вложения и золото из писем (пропускает наложенный платеж)"
+        L_ru["Inventory is full."] = "Инвентарь полон."
+    end
+end
