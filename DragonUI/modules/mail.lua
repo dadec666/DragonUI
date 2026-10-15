@@ -274,7 +274,7 @@ local function styleMailScrollBar(scrollFrame, ownerFrame)
         bar:ClearAllPoints()
         bar:SetPoint("TOP", scrollFrame, "TOP", 0, -7)
         bar:SetPoint("BOTTOM", scrollFrame, "BOTTOM", 0, 7)
-        bar:SetPoint("RIGHT", ownerFrame, "RIGHT", -11, 0)
+        bar:SetPoint("RIGHT", ownerFrame, "RIGHT", -13, 0)
     end
 end
 
@@ -1014,34 +1014,18 @@ local function buildMailFrame()
 
         if _G.SendMailMoneyButton then
             _G.SendMailMoneyButton:ClearAllPoints()
-            _G.SendMailMoneyButton:SetPoint("BOTTOMLEFT", sendFrame, "BOTTOMLEFT", 10, 38)
+            _G.SendMailMoneyButton:SetPoint("BOTTOMLEFT", sendFrame, "BOTTOMLEFT", 12, 38)
         end
 
         if _G.SendMailMoney and _G.SendMailMoneyText then
             _G.SendMailMoney:ClearAllPoints()
             _G.SendMailMoney:SetPoint("TOPLEFT", _G.SendMailMoneyText, "BOTTOMLEFT", 2, -4)
         end
-        if _G.SendMailMoneyGold then
-            _G.SendMailMoneyGold:SetWidth(48)
-            stretchEditBoxBorder(_G.SendMailMoneyGold)
-        end
-        if _G.SendMailMoneySilver and _G.SendMailMoneyGold then
-            _G.SendMailMoneySilver:SetWidth(28)
-            _G.SendMailMoneySilver:ClearAllPoints()
-            _G.SendMailMoneySilver:SetPoint("LEFT", _G.SendMailMoneyGold, "RIGHT", 16, 0)
-            stretchEditBoxBorder(_G.SendMailMoneySilver)
-        end
-        if _G.SendMailMoneyCopper and _G.SendMailMoneySilver then
-            _G.SendMailMoneyCopper:SetWidth(28)
-            _G.SendMailMoneyCopper:ClearAllPoints()
-            _G.SendMailMoneyCopper:SetPoint("LEFT", _G.SendMailMoneySilver, "RIGHT", 16, 0)
-            stretchEditBoxBorder(_G.SendMailMoneyCopper)
-        end
 
         -- Anchor radio buttons left of the right border so localized COD labels never overflow.
         if _G.SendMailSendMoneyButton then
             _G.SendMailSendMoneyButton:ClearAllPoints()
-            _G.SendMailSendMoneyButton:SetPoint("TOPLEFT", sendFrame, "BOTTOMLEFT", 174, 73)
+            _G.SendMailSendMoneyButton:SetPoint("TOPLEFT", sendFrame, "BOTTOMLEFT", 178, 73)
         end
         if _G.SendMailCODButton and _G.SendMailSendMoneyButton then
             _G.SendMailCODButton:ClearAllPoints()
