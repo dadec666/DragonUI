@@ -1170,3 +1170,6 @@ L["Mail"] = "Почта"
 L["Retail-style mail window with Open All button"] = "Окно почты в стиле Retail с кнопкой «Открыть все»"
 L["Open All"] = "Открыть все"
 L["Opening..."] = "Открытие..."
+
+L["Video & Audio Options"] = "Настройки видео и звука"
+L["Modern video and audio settings panel with unlocked graphics CVars."] = "Современная панель настроек графики и звука с разблокированными CVar."

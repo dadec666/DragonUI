@@ -1426,6 +1426,17 @@ local defaults = {
             taxiframe = {
                 enabled = true, -- Retail-style flight master map window
             },
+            video_options = {
+                enabled = true,
+                farclip = 777,
+                horizonFarclip = 1300,
+                groundEffectDist = 70,
+                groundEffectDensity = 64,
+                detailDoodadAlpha = 100,
+                soundChannels = 32,
+                cameraMaxFactor = 1.0,
+                enableHRTF = false,
+            },
         },
 
         -- LAYOUT PRESETS (user-saved UI snapshots within this profile)

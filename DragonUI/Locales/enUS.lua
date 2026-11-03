@@ -1169,3 +1169,6 @@ L["Mail"] = true
 L["Retail-style mail window with Open All button"] = true
 L["Open All"] = true
 L["Opening..."] = true
+
+L["Video & Audio Options"] = true
+L["Modern video and audio settings panel with unlocked graphics CVars."] = true

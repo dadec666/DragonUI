@@ -148,6 +148,9 @@
     <!-- Max camera distance past the Interface slider -->
     <Script file="camera.lua"/>
 
+    <!-- Video and audio settings with unlocked CVars -->
+    <Script file="video_options.lua"/>
+
     <!-- Addon Manager module -->
     <Script file="addonmanager_icons.lua"/>
     <Script file="addonmanager.lua"/>
