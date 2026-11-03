@@ -40,7 +40,11 @@ local function HookOptionFrames()
         VideoOptionsFrame._dragonUIHooked = true
         VideoOptionsFrame:HookScript("OnShow", function(self)
             if not IsModuleEnabled() then return end
-            self:Hide()
+            if HideUIPanel then
+                HideUIPanel(self)
+            else
+                self:Hide()
+            end
             OpenSystemTab("graphics")
         end)
     end
@@ -49,7 +53,11 @@ local function HookOptionFrames()
         AudioOptionsFrame._dragonUIHooked = true
         AudioOptionsFrame:HookScript("OnShow", function(self)
             if not IsModuleEnabled() then return end
-            self:Hide()
+            if HideUIPanel then
+                HideUIPanel(self)
+            else
+                self:Hide()
+            end
             OpenSystemTab("audio")
         end)
     end
