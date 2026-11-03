@@ -23,9 +23,12 @@ local function SafeSetCVar(cvar, value)
     end
 end
 
-local function OpenSystemTab()
+local function OpenSystemTab(subTab)
     if not addon.OptionsPanel and LoadAddOn then
         LoadAddOn("DragonUI_Options")
+    end
+    if addon.SetSystemSubTab and subTab then
+        addon.SetSystemSubTab(subTab)
     end
     if addon.OptionsPanel and addon.OptionsPanel.Open then
         addon.OptionsPanel:Open("system")
@@ -38,7 +41,7 @@ local function HookOptionFrames()
         VideoOptionsFrame:HookScript("OnShow", function(self)
             if not IsModuleEnabled() then return end
             self:Hide()
-            OpenSystemTab()
+            OpenSystemTab("graphics")
         end)
     end
 
@@ -47,7 +50,7 @@ local function HookOptionFrames()
         AudioOptionsFrame:HookScript("OnShow", function(self)
             if not IsModuleEnabled() then return end
             self:Hide()
-            OpenSystemTab()
+            OpenSystemTab("audio")
         end)
     end
 end
@@ -128,4 +131,3 @@ if addon.RegisterModule then
         loadOnce = false,
     })
 end
-
