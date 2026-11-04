@@ -128,10 +128,24 @@ local function SkinNativePanel(panel)
             if FUI and FUI.SkinScrollBar then
                 pcall(FUI.SkinScrollBar, child)
             end
-        elseif objType == "Frame" and child:GetName() and child:GetName():find("DropDown") then
-            local btn = _G[child:GetName() .. "Button"]
-            if btn and FUI and FUI.SkinDropdownButton then
-                pcall(FUI.SkinDropdownButton, btn)
+        elseif objType == "Frame" and child.GetName and child:GetName() then
+            local name = child:GetName()
+            local btn = _G[name .. "Button"]
+            local left = _G[name .. "Left"]
+            local mid = _G[name .. "Middle"]
+            local right = _G[name .. "Right"]
+            if btn and (left or mid or right or name:find("DropDown") or name:find("Dropdown")) then
+                local text = _G[name .. "Text"]
+                if left then left:SetAlpha(0); left:Hide() end
+                if mid then mid:SetAlpha(0); mid:Hide() end
+                if right then right:SetAlpha(0); right:Hide() end
+                local lbl = _G[name .. "Label"]
+                if lbl and lbl.SetTextColor then
+                    lbl:SetTextColor(0.9, 0.9, 0.9, 1)
+                end
+                if FUI and FUI.SkinDropdownButton then
+                    pcall(FUI.SkinDropdownButton, { dropdown = child, button = btn, text = text }, { style = "wow1" })
+                end
             end
         end
 
@@ -651,6 +665,17 @@ local function BuildKeybindingsPanel(parent)
     local catDropdown = CreateFrame("Frame", "DragonUI_VideoKeybindCatDropdown", container, "UIDropDownMenuTemplate")
     catDropdown:SetPoint("TOPLEFT", charCheck, "BOTTOMLEFT", -16, -6)
     UIDropDownMenu_SetWidth(catDropdown, 220)
+    local catBtn = _G["DragonUI_VideoKeybindCatDropdownButton"]
+    local catText = _G["DragonUI_VideoKeybindCatDropdownText"]
+    local catLeft = _G["DragonUI_VideoKeybindCatDropdownLeft"]
+    local catMid = _G["DragonUI_VideoKeybindCatDropdownMiddle"]
+    local catRight = _G["DragonUI_VideoKeybindCatDropdownRight"]
+    if catLeft then catLeft:SetAlpha(0); catLeft:Hide() end
+    if catMid then catMid:SetAlpha(0); catMid:Hide() end
+    if catRight then catRight:SetAlpha(0); catRight:Hide() end
+    if FUI and FUI.SkinDropdownButton then
+        pcall(FUI.SkinDropdownButton, { dropdown = catDropdown, button = catBtn, text = catText }, { style = "wow1" })
+    end
 
     local scroll = CreateFrame("ScrollFrame", "DragonUI_VideoKeybindScroll", container, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", catDropdown, "BOTTOMLEFT", 20, -6)
@@ -933,10 +958,14 @@ local function CreateWindow()
     FUI.SetResizeBounds(f, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_MAX_WIDTH, WINDOW_MAX_HEIGHT)
     VideoOptionsModule.frame = f
 
+    local inset = f.Inset
+
     -- Top Tabs: [ Game ] [ AddOns ]
     local gameTab = FUI.CreateTab(f)
+    gameTab:SetHeight(26)
     gameTab:SetTabText(SafeL("Game") or Text("GAME_LABEL", "Game"))
-    gameTab:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -32)
+    gameTab:SetPoint("BOTTOMLEFT", inset, "TOPLEFT", 12, -1)
+    gameTab:SetFrameLevel(inset:GetFrameLevel() + 2)
     gameTab:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
         VideoOptionsModule:SelectTab("game")
@@ -944,8 +973,10 @@ local function CreateWindow()
     f.gameTab = gameTab
 
     local addonsTab = FUI.CreateTab(f)
+    addonsTab:SetHeight(26)
     addonsTab:SetTabText(Text("ADDONS", "AddOns"))
     addonsTab:SetPoint("LEFT", gameTab, "RIGHT", 4, 0)
+    addonsTab:SetFrameLevel(inset:GetFrameLevel() + 2)
     addonsTab:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
         VideoOptionsModule:SelectTab("addons")
@@ -953,39 +984,20 @@ local function CreateWindow()
     f.addonsTab = addonsTab
 
     -- Top Search Box
-    local searchBox = CreateFrame("EditBox", nil, f)
-    searchBox:SetSize(190, 22)
-    searchBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -36, -32)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject(ChatFontNormal or GameFontHighlightSmall)
-    searchBox:SetTextInsets(22, 20, 0, 0)
-
-    local searchBg = searchBox:CreateTexture(nil, "BACKGROUND")
-    searchBg:SetAllPoints()
-    searchBg:SetTexture("Interface\\Common\\Common-Input-Border")
-
-    local hint = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    hint:SetPoint("LEFT", searchBox, "LEFT", 22, 0)
-    hint:SetText(Text("SEARCH", "Search..."))
-    searchBox.hint = hint
-
-    searchBox:SetScript("OnTextChanged", function(self)
-        local q = self:GetText()
-        if q and q ~= "" then
-            hint:Hide()
-        else
-            hint:Show()
-        end
-        VideoOptionsModule:FilterCategories(q)
+    local searchBox = FUI.CreateSearchBox(f, 220, SafeL("Search...") or Text("SEARCH", "Search..."))
+    searchBox:SetPoint("BOTTOMRIGHT", inset, "TOPRIGHT", -8, 6)
+    searchBox:SetFrameLevel(f:GetFrameLevel() + 5)
+    searchBox:HookScript("OnTextChanged", function(self)
+        VideoOptionsModule:FilterCategories(self:GetText())
     end)
-
-    searchBox:SetScript("OnEscapePressed", function(self)
+    searchBox:HookScript("OnEscapePressed", function(self)
         self:SetText("")
         self:ClearFocus()
     end)
+    searchBox:HookScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
     f.searchBox = searchBox
-
-    local inset = f.Inset
 
     -- Left Category Sidebar (SCROLLABLE)
     local listScroll = CreateFrame("ScrollFrame", "DragonUI_GameMenuCatScroll", inset, "UIPanelScrollFrameTemplate")
