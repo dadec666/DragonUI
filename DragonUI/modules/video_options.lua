@@ -26,7 +26,7 @@ local WINDOW_MIN_HEIGHT = 520
 local WINDOW_MAX_WIDTH  = 1400
 local WINDOW_MAX_HEIGHT = 900
 
-local LIST_WIDTH        = 210
+local LIST_WIDTH        = 225
 local LIST_GAP          = 14
 local LIST_MARGIN_TOP   = 8
 local LIST_HEADER_H     = 28
@@ -866,6 +866,9 @@ local function GetGameplayCategories()
             if p == InterfaceOptionsDisplayPanel or p:GetName() == "InterfaceOptionsDisplayPanel" then
                 displayName = Text("DISPLAY", "Display")
             end
+            if displayName then
+                displayName = displayName:gsub("%s*!+$", "")
+            end
             cats[#cats + 1] = {
                 id = p:GetName() or p.name,
                 name = displayName,
@@ -919,7 +922,7 @@ local function CreateWindow()
     local f = FUI.CreateWindow("DragonUI_GameMenuOptions", UIParent, {
         width    = WINDOW_WIDTH,
         height   = WINDOW_HEIGHT,
-        title    = Text("OPTIONS", "Options"),
+        title    = SafeL("Options") or Text("GAMEOPTIONS_MENU", "Options"),
         inset    = true,
         strata   = "DIALOG",
         movable  = true,
@@ -932,7 +935,7 @@ local function CreateWindow()
 
     -- Top Tabs: [ Game ] [ AddOns ]
     local gameTab = FUI.CreateTab(f)
-    gameTab:SetTabText(Text("GAME", "Game"))
+    gameTab:SetTabText(SafeL("Game") or Text("GAME_LABEL", "Game"))
     gameTab:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -32)
     gameTab:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
@@ -1121,6 +1124,9 @@ function VideoOptionsModule:BuildCategoryButtons()
             hdr = FUI.CreateCategoryHeader(f.categoryList)
             self.groupHeaders[hdrIndex] = hdr
         end
+        if f.categoryList:GetWidth() and f.categoryList:GetWidth() > 0 then
+            hdr:SetWidth(f.categoryList:GetWidth())
+        end
         return hdr
     end
 
@@ -1130,8 +1136,10 @@ function VideoOptionsModule:BuildCategoryButtons()
     local function RenderItem(item, indent)
         local btn = GetButton()
         btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 4, -yOffset)
+        if f.categoryList:GetWidth() and f.categoryList:GetWidth() > 0 then
+            btn:SetWidth(f.categoryList:GetWidth() - 8)
+        end
         btn:SetText(item.name or "Unknown")
-        btn:SetIndent(indent + (item.hasChildren and 16 or 0))
         btn.catData = item
         btn:SetSelected(self.activeCategory and (self.activeCategory.id == item.id or (item.panel and self.activeCategory.panel == item.panel)))
 
@@ -1143,6 +1151,8 @@ function VideoOptionsModule:BuildCategoryButtons()
         if item.hasChildren then
             local isCollapsed = (self.collapsedState[item.id or item.name] ~= false)
             if query ~= "" then isCollapsed = false end
+            btn:SetLabelLeft(22)
+            btn:SetIndent(indent + 14)
             btn.toggleBtn:SetPoint("LEFT", btn, "LEFT", indent + 2, 0)
             btn.toggleBtn.text:SetText(isCollapsed and "|cffFFD100+|r" or "|cffFFD100-|r")
             btn.toggleBtn:SetScript("OnClick", function()
@@ -1151,6 +1161,8 @@ function VideoOptionsModule:BuildCategoryButtons()
             end)
             btn.toggleBtn:Show()
         else
+            btn:SetLabelLeft(10)
+            btn:SetIndent(indent)
             btn.toggleBtn:Hide()
         end
 

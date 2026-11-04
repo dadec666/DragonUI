@@ -1207,3 +1207,5 @@ L["Sound Quality"] = true
 L["Software HRTF"] = true
 L["Hardware Acceleration"] = true
 L["Sound Channels"] = true
+L["Options"] = true
+L["Game"] = true
