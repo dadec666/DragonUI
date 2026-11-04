@@ -50,7 +50,7 @@ local ADVANCED_SECTIONS = {
     { title = "Frames", modules = { "nameplates", "unitframe_layers", "hp_low_alert", "personalresource", "swingtimer", "combopoints", "totemframe", "auraborders", "auracooldowns" } },
     { title = "Bars", modules = { "mainbars", "vehicle", "stance", "petbar", "multicast", "extrabar1", "buttons", "cooldowns", "noop", "keybinding" } },
     { title = "Interface", modules = { "minimap", "MinimapDecorations", "micromenu", "questtracker", "chatmods", "tooltip", "darkmode", "levelupenhance", "addonmanager" } },
-    { title = "Panels", modules = { "characterpanel", "collections", "spellbook", "professions", "talents", "worldmap", "loot_skin", "mail", "taxiframe" } },
+    { title = "Panels", modules = { "characterpanel", "collections", "spellbook", "professions", "talents", "worldmap", "loot_skin", "mail", "taxiframe", "video_options" } },
     { title = "Bags", modules = { "bagster", "bags_skin", "bagsort", "altmoney", "itemlevel", "itemquality" } },
 }
 
@@ -324,6 +324,7 @@ local function BuildModulesTab(scroll)
             { key = "nameplates",  name = LO["Nameplates"] },
             { key = "keybinding",  name = LO["KeyBinding"] },
             { key = "questtracker", name = LO["Quest Tracker"] },
+            { key = "video_options", name = LO["Video & Audio Options"] or "Video & Audio Options" },
         }
         for _, mod in ipairs(knownModules) do
             ModuleToggle(advSection, {
