@@ -179,15 +179,6 @@ local function BuildGraphicsSubTab(scroll)
     })
 
     C:AddToggle(displaySection, {
-        label = Text("REDUCE_INPUT_LAG", "Reduce Input Lag", "Reduce Input Lag"),
-        desc = Text("OPTION_TOOLTIP_REDUCE_INPUT_LAG", "Reduces mouse latency at the expense of slight frame rate jitter.", "Reduces mouse latency at the expense of slight frame rate jitter."),
-        getFunc = function() return SafeGetCVar("timingTestError") == "0" end,
-        setFunc = function(val)
-            SafeSetCVar("timingTestError", val and "0" or "1")
-        end,
-    })
-
-    C:AddToggle(displaySection, {
         label = Text("HARDWARE_CURSOR", "Hardware Cursor", "Hardware Cursor"),
         desc = Text("OPTION_TOOLTIP_HARDWARE_CURSOR", "Use hardware cursor rendering to prevent mouse pointer stutter.", "Use hardware cursor rendering to prevent mouse pointer stutter."),
         getFunc = function() return SafeGetCVar("gxCursor") == "1" end,
@@ -197,7 +188,17 @@ local function BuildGraphicsSubTab(scroll)
         end,
     })
 
-    -- Quality & Textures Section
+    C:AddToggle(displaySection, {
+        label = Text("REDUCE_INPUT_LAG", "Reduce Input Lag", "Reduce Input Lag"),
+        desc = Text("OPTION_TOOLTIP_REDUCE_INPUT_LAG", "Reduces mouse latency at the expense of slight frame rate jitter.", "Reduces mouse latency at the expense of slight frame rate jitter."),
+        getFunc = function() return SafeGetCVar("gxFixLag", "1") == "1" end,
+        setFunc = function(val)
+            SafeSetCVar("gxFixLag", val and "1" or "0")
+            SafeRestartGx()
+        end,
+    })
+
+    -- Quality Section
     local qualitySection = C:AddSection(scroll, Text("GRAPHICS_QUALITY", "Graphics Quality", "Graphics Quality"))
 
     C:AddDropdown(qualitySection, {
@@ -253,8 +254,15 @@ local function BuildGraphicsSubTab(scroll)
             [3] = Text("VIDEO_OPTIONS_HIGH", "High", "High"),
             [4] = Text("VIDEO_OPTIONS_ULTRA", "Ultra", "Ultra"),
         },
-        getFunc = function() return tonumber(SafeGetCVar("shadowMode", "0")) or 0 end,
-        setFunc = function(val) SafeSetCVar("shadowMode", val) end,
+        getFunc = function()
+            local v = tonumber(SafeGetCVar("extShadowQuality", nil))
+            if v == nil then v = tonumber(SafeGetCVar("shadowMode", "0")) or 0 end
+            return v
+        end,
+        setFunc = function(val)
+            SafeSetCVar("extShadowQuality", val)
+            SafeSetCVar("shadowMode", val)
+        end,
         width = 220,
     })
 
@@ -270,6 +278,20 @@ local function BuildGraphicsSubTab(scroll)
         getFunc = function() return tonumber(SafeGetCVar("weatherDensity", "2")) or 2 end,
         setFunc = function(val) SafeSetCVar("weatherDensity", val) end,
         width = 220,
+    })
+
+    C:AddToggle(qualitySection, {
+        label = Text(nil, "Fullscreen Glow", "Fullscreen Glow"),
+        desc = Text(nil, "Enable full-screen bloom and glow lighting shader effects.", "Enable full-screen bloom and glow lighting shader effects."),
+        getFunc = function() return SafeGetCVar("ffxGlow", "1") == "1" end,
+        setFunc = function(val) SafeSetCVar("ffxGlow", val and "1" or "0") end,
+    })
+
+    C:AddToggle(qualitySection, {
+        label = Text(nil, "Death Effect", "Death Effect"),
+        desc = Text(nil, "Enable the black-and-white ghost vision effect upon player death.", "Enable the black-and-white ghost vision effect upon player death."),
+        getFunc = function() return SafeGetCVar("ffxDeath", "1") == "1" end,
+        setFunc = function(val) SafeSetCVar("ffxDeath", val and "1" or "0") end,
     })
 
     -- Advanced Graphics / Over-capped CVars Section
@@ -294,23 +316,44 @@ local function BuildGraphicsSubTab(scroll)
     CleanSlider(s1)
 
     local s2 = C:AddSlider(advSection, {
-        label = Text(nil, "Horizon Farclip", "Horizon Farclip"),
-        desc = Text(nil, "Horizon view distance (unlocked past Blizzard default).", "Horizon view distance (unlocked past Blizzard default)."),
-        min = 500,
-        max = 2112,
-        step = 100,
-        default = 1300,
-        dbPath = "modules.video_options.horizonFarclip",
-        getFunc = function() return GetModuleField("video_options", "horizonFarclip") or 1300 end,
+        label = Text(nil, "Horizon Farclip Scale", "Horizon Farclip Scale"),
+        desc = Text(nil, "Scale factor for distant horizon terrain draw distance (1.0 to 6.0, default 4.0).", "Scale factor for distant horizon terrain draw distance (1.0 to 6.0, default 4.0)."),
+        min = 1.0,
+        max = 6.0,
+        step = 0.5,
+        default = 4.0,
+        dbPath = "modules.video_options.horizonFarclipScale",
+        getFunc = function()
+            local v = GetModuleField("video_options", "horizonFarclipScale")
+            if not v or v > 10 then v = 4.0 end
+            return v
+        end,
         setFunc = function(val)
-            EnsureModuleTable("video_options").horizonFarclip = val
-            SafeSetCVar("horizonFarclip", val)
-            SafeSetCVar("horizonClip", val)
+            EnsureModuleTable("video_options").horizonFarclipScale = val
+            SafeSetCVar("horizonFarclipScale", val)
         end,
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
     CleanSlider(s2)
+
+    local sEnv = C:AddSlider(advSection, {
+        label = Text("ENVIRONMENT_DETAIL", "Environment Detail", "Environment Detail"),
+        desc = Text("OPTION_TOOLTIP_ENVIRONMENT_DETAIL", "Render distance of world buildings, doodads, and environmental objects.", "Render distance of world buildings, doodads, and environmental objects."),
+        min = 0.5,
+        max = 1.5,
+        step = 0.1,
+        default = 1.0,
+        dbPath = "modules.video_options.environmentDetail",
+        getFunc = function() return GetModuleField("video_options", "environmentDetail") or tonumber(SafeGetCVar("environmentDetail", "1.0")) or 1.0 end,
+        setFunc = function(val)
+            EnsureModuleTable("video_options").environmentDetail = val
+            SafeSetCVar("environmentDetail", val)
+        end,
+        disabled = function() return not IsEnabled("video_options") end,
+        width = 240,
+    })
+    CleanSlider(sEnv)
 
     local s3 = C:AddSlider(advSection, {
         label = Text("GROUND_EFFECT_DIST", "Ground Effect Distance", "Ground Effect Distance"),
@@ -451,8 +494,11 @@ local function BuildAudioSubTab(scroll)
     C:AddToggle(volSection, {
         label = Text("ENABLE_BGSOUND", "Sound in Background", "Sound in Background"),
         desc = Text("OPTION_TOOLTIP_ENABLE_BGSOUND", "Keep game audio playing when World of Warcraft is minimized or loses focus.", "Keep game audio playing when World of Warcraft is minimized or loses focus."),
-        getFunc = function() return SafeGetCVar("Sound_EnableSoundWhenBackgrounded") == "1" end,
-        setFunc = function(val) SafeSetCVar("Sound_EnableSoundWhenBackgrounded", val and "1" or "0") end,
+        getFunc = function() return (SafeGetCVar("Sound_EnableSoundWhenGameIsInBG", nil) or SafeGetCVar("Sound_EnableSoundWhenBackgrounded", "0")) == "1" end,
+        setFunc = function(val)
+            SafeSetCVar("Sound_EnableSoundWhenGameIsInBG", val and "1" or "0")
+            SafeSetCVar("Sound_EnableSoundWhenBackgrounded", val and "1" or "0")
+        end,
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" end,
     })
 

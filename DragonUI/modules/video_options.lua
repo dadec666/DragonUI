@@ -70,15 +70,20 @@ function VideoOptionsModule:ApplySettings()
     if cfg.farclip then
         SafeSetCVar("farclip", cfg.farclip)
     end
-    if cfg.horizonFarclip then
-        SafeSetCVar("horizonFarclip", cfg.horizonFarclip)
-        SafeSetCVar("horizonClip", cfg.horizonFarclip)
+    if cfg.horizonFarclipScale then
+        SafeSetCVar("horizonFarclipScale", cfg.horizonFarclipScale)
+    elseif cfg.horizonFarclip then
+        local scale = (type(cfg.horizonFarclip) == "number" and cfg.horizonFarclip > 10) and 4.0 or cfg.horizonFarclip
+        SafeSetCVar("horizonFarclipScale", scale)
     end
     if cfg.groundEffectDist then
         SafeSetCVar("groundEffectDist", cfg.groundEffectDist)
     end
     if cfg.groundEffectDensity then
         SafeSetCVar("groundEffectDensity", cfg.groundEffectDensity)
+    end
+    if cfg.environmentDetail then
+        SafeSetCVar("environmentDetail", cfg.environmentDetail)
     end
     if cfg.cameraMaxFactor then
         SafeSetCVar("cameraDistanceMaxFactor", cfg.cameraMaxFactor)
