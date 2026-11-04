@@ -95,19 +95,6 @@ local function SkinNativePanel(panel)
     if not panel or panel._dragonUISkinned then return end
     panel._dragonUISkinned = true
 
-    local panelName = panel:GetName()
-    if panelName then
-        local title = _G[panelName .. "Title"]
-        if title then title:Hide() end
-        local subText = _G[panelName .. "SubText"]
-        if subText then
-            subText:ClearAllPoints()
-            subText:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -4)
-            subText:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -4)
-            subText:SetTextColor(0.8, 0.8, 0.8, 1)
-        end
-    end
-
     local function SkinElement(child)
         if not child then return end
         local objType = child.GetObjectType and child:GetObjectType()
@@ -234,7 +221,7 @@ local function BuildGraphicsPanel(parent)
     end
 
     -- Display
-    AddHeader(Text("DISPLAY_HEADER", "Display"))
+    AddHeader(Text("DISPLAY", "Display"))
 
     -- Resolution Dropdown
     if GetScreenResolutions and GetCurrentResolution and SetScreenResolution then
@@ -301,7 +288,7 @@ local function BuildGraphicsPanel(parent)
         SafeRestartGx()
     end)
 
-    AddCheckbox(Text("REDUCE_INPUT_LAG", "Reduce Input Lag"), function()
+    AddCheckbox(Text("FIX_LAG", "Reduce Input Lag"), function()
         return SafeGetCVar("gxFixLag", "1") == "1"
     end, function(val)
         SafeSetCVar("gxFixLag", val and "1" or "0")
@@ -311,7 +298,7 @@ local function BuildGraphicsPanel(parent)
     yOffset = yOffset + 10
 
     -- Quality
-    AddHeader(Text("GRAPHICS_QUALITY", "Graphics Quality"))
+    AddHeader(Text("QUALITY", "Graphics Quality"))
 
     -- Texture Resolution
     AddDropdown(Text("TEXTURE_DETAIL", "Texture Resolution"), {
@@ -875,20 +862,20 @@ local function GetGameplayCategories()
 
     if #cats == 0 then
         local fallbackList = {
-            { id = "InterfaceOptionsControlsPanel",   name = Text("CONTROLS_LABEL", "Controls"), panelName = "InterfaceOptionsControlsPanel" },
-            { id = "InterfaceOptionsCombatPanel",     name = Text("COMBAT_LABEL", "Combat"), panelName = "InterfaceOptionsCombatPanel" },
-            { id = "InterfaceOptionsDisplayPanel",    name = Text("DISPLAY", "Display"), panelName = "InterfaceOptionsDisplayPanel" },
-            { id = "InterfaceOptionsObjectivesPanel", name = Text("OBJECTIVES_LABEL", "Quests"), panelName = "InterfaceOptionsObjectivesPanel" },
-            { id = "InterfaceOptionsSocialPanel",     name = Text("SOCIAL_LABEL", "Social"), panelName = "InterfaceOptionsSocialPanel" },
-            { id = "InterfaceOptionsActionBarsPanel", name = Text("ACTIONBARS_LABEL", "Action Bars"), panelName = "InterfaceOptionsActionBarsPanel" },
-            { id = "InterfaceOptionsNamesPanel",      name = Text("NAMES_LABEL", "Names"), panelName = "InterfaceOptionsNamesPanel" },
-            { id = "InterfaceOptionsCombatTextPanel", name = Text("COMBAT_TEXT_LABEL", "Combat Text"), panelName = "InterfaceOptionsCombatTextPanel" },
-            { id = "InterfaceOptionsStatusTextPanel", name = Text("STATUS_TEXT_LABEL", "Status Text"), panelName = "InterfaceOptionsStatusTextPanel" },
-            { id = "InterfaceOptionsUnitFramePanel",  name = Text("UNITFRAMES_LABEL", "Unit Frames"), panelName = "InterfaceOptionsUnitFramePanel" },
-            { id = "InterfaceOptionsBuffsPanel",      name = Text("BUFFS_LABEL", "Buffs & Debuffs"), panelName = "InterfaceOptionsBuffsPanel" },
-            { id = "InterfaceOptionsCameraPanel",     name = Text("CAMERA_LABEL", "Camera"), panelName = "InterfaceOptionsCameraPanel" },
-            { id = "InterfaceOptionsMousePanel",      name = Text("MOUSE_LABEL", "Mouse"), panelName = "InterfaceOptionsMousePanel" },
-            { id = "InterfaceOptionsHelpPanel",       name = Text("HELP_LABEL", "Help"), panelName = "InterfaceOptionsHelpPanel" },
+            { id = "InterfaceOptionsControlsPanel",   name = Text("CONTROLS_LABEL", "Controls"), panelName = "InterfaceOptionsControlsPanel", isNative = true },
+            { id = "InterfaceOptionsCombatPanel",     name = Text("COMBAT_LABEL", "Combat"), panelName = "InterfaceOptionsCombatPanel", isNative = true },
+            { id = "InterfaceOptionsDisplayPanel",    name = Text("DISPLAY", "Display"), panelName = "InterfaceOptionsDisplayPanel", isNative = true },
+            { id = "InterfaceOptionsObjectivesPanel", name = Text("OBJECTIVES_LABEL", "Quests"), panelName = "InterfaceOptionsObjectivesPanel", isNative = true },
+            { id = "InterfaceOptionsSocialPanel",     name = Text("SOCIAL_LABEL", "Social"), panelName = "InterfaceOptionsSocialPanel", isNative = true },
+            { id = "InterfaceOptionsActionBarsPanel", name = Text("ACTIONBARS_LABEL", "Action Bars"), panelName = "InterfaceOptionsActionBarsPanel", isNative = true },
+            { id = "InterfaceOptionsNamesPanel",      name = Text("NAMES_LABEL", "Names"), panelName = "InterfaceOptionsNamesPanel", isNative = true },
+            { id = "InterfaceOptionsCombatTextPanel", name = Text("COMBAT_TEXT_LABEL", "Combat Text"), panelName = "InterfaceOptionsCombatTextPanel", isNative = true },
+            { id = "InterfaceOptionsStatusTextPanel", name = Text("STATUS_TEXT", "Status Text"), panelName = "InterfaceOptionsStatusTextPanel", isNative = true },
+            { id = "InterfaceOptionsUnitFramePanel",  name = Text("UNITFRAME_LABEL", "Unit Frames"), panelName = "InterfaceOptionsUnitFramePanel", isNative = true },
+            { id = "InterfaceOptionsBuffsPanel",      name = Text("AURAS", "Buffs & Debuffs"), panelName = "InterfaceOptionsBuffsPanel", isNative = true },
+            { id = "InterfaceOptionsCameraPanel",     name = Text("CAMERA_LABEL", "Camera"), panelName = "InterfaceOptionsCameraPanel", isNative = true },
+            { id = "InterfaceOptionsMousePanel",      name = Text("MOUSE_LABEL", "Mouse"), panelName = "InterfaceOptionsMousePanel", isNative = true },
+            { id = "InterfaceOptionsHelpPanel",       name = Text("HELP_LABEL", "Help"), panelName = "InterfaceOptionsHelpPanel", isNative = true },
         }
         for _, item in ipairs(fallbackList) do
             if _G[item.panelName] then
@@ -1139,7 +1126,7 @@ function VideoOptionsModule:BuildCategoryButtons()
         end)
 
         if item.hasChildren then
-            local isCollapsed = (self.collapsedState[item.id or item.name] == true)
+            local isCollapsed = (self.collapsedState[item.id or item.name] ~= false)
             if query ~= "" then isCollapsed = false end
             btn.toggleBtn:SetPoint("LEFT", btn, "LEFT", indent + 2, 0)
             btn.toggleBtn.text:SetText(isCollapsed and "|cffFFD100+|r" or "|cffFFD100-|r")
@@ -1155,7 +1142,7 @@ function VideoOptionsModule:BuildCategoryButtons()
         btn:Show()
         yOffset = yOffset + ROW_HEIGHT + 2
 
-        if item.hasChildren and (self.collapsedState[item.id or item.name] ~= true or query ~= "") then
+        if item.hasChildren and (self.collapsedState[item.id or item.name] == false or query ~= "") then
             for _, child in ipairs(item.children) do
                 if query == "" or (child.name and child.name:lower():find(query, 1, true)) or (item.name and item.name:lower():find(query, 1, true)) then
                     RenderItem(child, indent + 16)
@@ -1303,7 +1290,9 @@ function VideoOptionsModule:SelectCategory(cat)
             p:ClearAllPoints()
             p:SetPoint("TOPLEFT", panelHost, "TOPLEFT", 8, -6)
             p:SetPoint("BOTTOMRIGHT", panelHost, "BOTTOMRIGHT", -8, 6)
-            SkinNativePanel(p)
+            if cat.isNative or cat.panelName then
+                SkinNativePanel(p)
+            end
             if p.refresh then pcall(p.refresh, p) end
             p:Show()
             self.activePanel = p
