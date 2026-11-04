@@ -13,17 +13,34 @@ function addon.SetSystemSubTab(key)
     activeSubTab = key or "graphics"
 end
 
+local function SafeGetLO(key)
+    if not key or not LO then return nil end
+    local val = rawget(LO, key)
+    if val ~= nil then
+        if type(val) == "string" and val ~= "" then
+            return val
+        end
+        return nil
+    end
+    local app = LibStub and LibStub("AceLocale-3.0-DragonUI", true)
+    local appTable = app and app.apps and app.apps["DragonUI_Options"]
+    local defaultTbl = appTable and rawget(appTable, "enUS")
+    if defaultTbl then
+        local defVal = rawget(defaultTbl, key)
+        if defVal ~= nil and type(defVal) == "string" and defVal ~= "" then
+            return defVal
+        end
+    end
+    return nil
+end
+
 local function Text(globalKey, fallbackKey, defaultText)
     if globalKey and _G[globalKey] and type(_G[globalKey]) == "string" and _G[globalKey] ~= "" then
         return _G[globalKey]
     end
     local key = fallbackKey or defaultText
-    if key and LO then
-        local ok, val = pcall(function() return LO[key] end)
-        if ok and type(val) == "string" and val ~= "" then
-            return val
-        end
-    end
+    local val = SafeGetLO(key)
+    if val then return val end
     return defaultText or key or ""
 end
 

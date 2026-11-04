@@ -1912,3 +1912,7 @@ L["Horizon Farclip Scale"] = true
 L["Scale factor for distant horizon terrain draw distance (1.0 to 6.0, default 4.0)."] = true
 L["Environment Detail"] = true
 L["Render distance of world buildings, doodads, and environmental objects."] = true
+L["Medium"] = true
+L["Fair"] = true
+L["Vertical Sync"] = true
+L["View Distance"] = true

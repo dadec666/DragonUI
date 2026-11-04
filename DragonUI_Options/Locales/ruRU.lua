@@ -1924,3 +1924,7 @@ L["Horizon Farclip Scale"] = "Масштаб дальности горизонт
 L["Scale factor for distant horizon terrain draw distance (1.0 to 6.0, default 4.0)."] = "Множитель дальности отрисовки далекого рельефа горизонта (от 1.0 до 6.0, по умолчанию 4.0)."
 L["Environment Detail"] = "Детализация окружения"
 L["Render distance of world buildings, doodads, and environmental objects."] = "Дальность прорисовки строений, заборов и декоративных объектов мира."
+L["Medium"] = "Среднее"
+L["Fair"] = "Среднее"
+L["Vertical Sync"] = "Вертикальная синхронизация"
+L["View Distance"] = "Видимость"
