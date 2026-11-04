@@ -1172,3 +1172,11 @@ L["Opening..."] = true
 
 L["Video & Audio Options"] = true
 L["Modern video and audio settings panel with unlocked graphics CVars."] = true
+L["Gameplay"] = true
+L["Fullscreen (Windowed)"] = true
+L["Fullscreen Glow"] = true
+L["Death Effect"] = true
+L["Horizon Farclip Scale"] = true
+L["Max Camera Distance Factor"] = true
+L["Max Foreground FPS"] = true
+L["Max Background FPS"] = true

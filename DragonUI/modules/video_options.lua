@@ -3,6 +3,7 @@
 local addonName, addon = ...
 local L = addon.L
 local FUI = addon.ForeverUI
+local Atlas = addon.ForeverAtlas
 
 local VideoOptionsModule = {
     initialized = false,
@@ -14,6 +15,7 @@ local VideoOptionsModule = {
     customPanels = {},
     categoryButtons = {},
     groupHeaders = {},
+    collapsedState = {},
 }
 addon.VideoOptionsModule = VideoOptionsModule
 
@@ -28,8 +30,8 @@ local LIST_WIDTH        = 210
 local LIST_GAP          = 14
 local LIST_MARGIN_TOP   = 8
 local LIST_HEADER_H     = 28
-local ROW_HEIGHT        = 22
-local GROUP_GAP         = 10
+local ROW_HEIGHT        = 24
+local GROUP_GAP         = 8
 
 local function GetModuleConfig()
     return addon:GetModuleConfig("video_options")
@@ -86,39 +88,64 @@ local function Text(globalKey, fallbackText)
 end
 
 -- ============================================================================
--- GAME CATEGORY DEFINITIONS
+-- NATIVE BLIZZARD CONTROLS RESKINNING
 -- ============================================================================
 
-local GAME_GROUPS = {
-    {
-        label = Text("GAMEPLAY", "Gameplay"),
-        categories = {
-            { id = "controls",      name = Text("CONTROLS_LABEL", "Controls"),                   panelName = "InterfaceOptionsControlsPanel" },
-            { id = "combat",        name = Text("COMBAT_LABEL", "Combat"),                       panelName = "InterfaceOptionsCombatPanel" },
-            { id = "display",       name = Text("DISPLAY", "Display"),                           panelName = "InterfaceOptionsDisplayPanel" },
-            { id = "quests",        name = Text("QUESTS_LABEL", "Quests"),                       panelName = "InterfaceOptionsQuestPanel" },
-            { id = "social",        name = Text("SOCIAL_LABEL", "Social"),                       panelName = "InterfaceOptionsSocialPanel" },
-            { id = "actionbars",    name = Text("ACTIONBARS_LABEL", "Action Bars"),           panelName = "InterfaceOptionsActionBarsPanel" },
-            { id = "names",         name = Text("NAMES_LABEL", "Names"),                           panelName = "InterfaceOptionsNamesPanel" },
-            { id = "combattext",    name = Text("COMBAT_TEXT_LABEL", "Combat Text"),         panelName = "InterfaceOptionsCombatTextPanel" },
-            { id = "statustext",    name = Text("STATUS_TEXT_LABEL", "Status Text"),         panelName = "InterfaceOptionsStatusTextPanel" },
-            { id = "unitframes",    name = Text("UNITFRAMES_LABEL", "Unit Frames"),           panelName = "InterfaceOptionsUnitFramePanel" },
-            { id = "buffs",         name = Text("BUFFS_LABEL", "Buffs & Debuffs"),       panelName = "InterfaceOptionsBuffsPanel" },
-            { id = "camera",        name = Text("CAMERA_LABEL", "Camera"),                       panelName = "InterfaceOptionsCameraPanel" },
-            { id = "mouse",         name = Text("MOUSE_LABEL", "Mouse"),                           panelName = "InterfaceOptionsMousePanel" },
-            { id = "accessibility", name = Text("ACCESSIBILITY_LABEL", "Accessibility"),   panelName = "InterfaceOptionsAccessibilityPanel" },
-            { id = "help",          name = Text("HELP_LABEL", "Help"),                             panelName = "InterfaceOptionsHelpPanel" },
-            { id = "keybindings",   name = Text("KEY_BINDINGS", "Keybindings"),             custom = "keybindings" },
-        }
-    },
-    {
-        label = Text("SYSTEM", "System"),
-        categories = {
-            { id = "graphics",      name = Text("GRAPHICS_LABEL", "Graphics"),                 custom = "graphics" },
-            { id = "audio",         name = Text("SOUND_LABEL", "Audio"),                           custom = "audio" },
-        }
-    }
-}
+local function SkinNativePanel(panel)
+    if not panel or panel._dragonUISkinned then return end
+    panel._dragonUISkinned = true
+
+    local panelName = panel:GetName()
+    if panelName then
+        local title = _G[panelName .. "Title"]
+        if title then title:Hide() end
+        local subText = _G[panelName .. "SubText"]
+        if subText then
+            subText:ClearAllPoints()
+            subText:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -4)
+            subText:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -4)
+            subText:SetTextColor(0.8, 0.8, 0.8, 1)
+        end
+    end
+
+    local function SkinElement(child)
+        if not child then return end
+        local objType = child.GetObjectType and child:GetObjectType()
+
+        if objType == "CheckButton" then
+            if FUI and FUI.SkinCheckButton then
+                pcall(FUI.SkinCheckButton, child)
+            end
+            local text = _G[child:GetName() and (child:GetName() .. "Text")] or child.text
+            if text and text.SetTextColor then
+                text:SetTextColor(0.9, 0.9, 0.9, 1)
+            end
+        elseif objType == "Slider" then
+            if FUI and FUI.SkinSlider then
+                pcall(FUI.SkinSlider, child)
+            end
+        elseif objType == "ScrollFrame" then
+            if FUI and FUI.SkinScrollBar then
+                pcall(FUI.SkinScrollBar, child)
+            end
+        elseif objType == "Frame" and child:GetName() and child:GetName():find("DropDown") then
+            local btn = _G[child:GetName() .. "Button"]
+            if btn and FUI and FUI.SkinDropdownButton then
+                pcall(FUI.SkinDropdownButton, btn)
+            end
+        end
+
+        local children = { child:GetChildren() }
+        for _, sub in ipairs(children) do
+            SkinElement(sub)
+        end
+    end
+
+    local children = { panel:GetChildren() }
+    for _, child in ipairs(children) do
+        SkinElement(child)
+    end
+end
 
 -- ============================================================================
 -- GRAPHICS PANEL BUILDER
@@ -132,7 +159,7 @@ local function BuildGraphicsPanel(parent)
     end
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(parent:GetWidth() - 40, 1050)
+    content:SetSize(parent:GetWidth() - 40, 1300)
     scroll:SetScrollChild(content)
 
     local yOffset = 10
@@ -154,7 +181,7 @@ local function BuildGraphicsPanel(parent)
         return cb
     end
 
-    local function AddSlider(label, minVal, maxVal, step, getFunc, setFunc)
+    local function AddSlider(label, minVal, maxVal, step, getFunc, setFunc, fmt)
         local sl = FUI.CreateSlider(content, {
             label = label,
             min = minVal,
@@ -163,13 +190,14 @@ local function BuildGraphicsPanel(parent)
             width = 380,
             get = getFunc,
             set = setFunc,
+            format = fmt,
         })
         sl:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
         yOffset = yOffset + 38
         return sl
     end
 
-    local function AddDropdown(label, values, getFunc, setFunc)
+    local function AddDropdown(label, values, order, getFunc, setFunc)
         local lbl = content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         lbl:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -yOffset)
         lbl:SetText(label)
@@ -179,7 +207,13 @@ local function BuildGraphicsPanel(parent)
             width = 240,
             builder = function(self)
                 local items = {}
-                for k, v in pairs(values) do
+                local keys = order or {}
+                if #keys == 0 then
+                    for k in pairs(values) do keys[#keys + 1] = k end
+                    table.sort(keys)
+                end
+                for _, k in ipairs(keys) do
+                    local v = values[k]
                     items[#items + 1] = {
                         text = v,
                         value = k,
@@ -202,11 +236,31 @@ local function BuildGraphicsPanel(parent)
     -- Display
     AddHeader(Text("DISPLAY_HEADER", "Display"))
 
+    -- Resolution Dropdown
+    if GetScreenResolutions and GetCurrentResolution and SetScreenResolution then
+        local resValues = {}
+        local resOrder = {}
+        local numRes = select("#", GetScreenResolutions())
+        for i = 1, numRes do
+            local res = select(i, GetScreenResolutions())
+            resValues[i] = res
+            resOrder[#resOrder + 1] = i
+        end
+        if #resOrder > 0 then
+            AddDropdown(Text("RESOLUTION", "Resolution"), resValues, resOrder, function()
+                return GetCurrentResolution() or 1
+            end, function(val)
+                SetScreenResolution(val)
+                SafeRestartGx()
+            end)
+        end
+    end
+
     AddDropdown(Text("DISPLAY_MODE", "Display Mode"), {
-        [1] = Text("FULLSCREEN", "Fullscreen"),
+        [1] = Text("VIDEO_OPTIONS_FULLSCREEN", "Fullscreen"),
         [2] = Text("VIDEO_OPTIONS_WINDOWED", "Windowed"),
-        [3] = Text("WINDOWED_FULLSCREEN", "Fullscreen (Windowed)"),
-    }, function()
+        [3] = Text("VIDEO_OPTIONS_WINDOWED_FULLSCREEN", "Fullscreen (Windowed)"),
+    }, { 1, 2, 3 }, function()
         local win = SafeGetCVar("gxWindow", "0") == "1"
         local max = SafeGetCVar("gxMaximize", "0") == "1"
         if win and max then return 3
@@ -259,12 +313,24 @@ local function BuildGraphicsPanel(parent)
     -- Quality
     AddHeader(Text("GRAPHICS_QUALITY", "Graphics Quality"))
 
+    -- Texture Resolution
+    AddDropdown(Text("TEXTURE_DETAIL", "Texture Resolution"), {
+        [0] = Text("VIDEO_OPTIONS_HIGH", "High"),
+        [1] = Text("VIDEO_OPTIONS_FAIR", "Fair"),
+        [2] = Text("VIDEO_OPTIONS_LOW", "Low"),
+    }, { 0, 1, 2 }, function()
+        return tonumber(SafeGetCVar("baseMip", "0")) or 0
+    end, function(val)
+        SafeSetCVar("baseMip", val)
+        SafeRestartGx()
+    end)
+
     AddDropdown(Text("MULTISAMPLE", "Anti-Aliasing"), {
         [1] = "1x (" .. Text("VIDEO_OPTIONS_OFF", "Off") .. ")",
         [2] = "2x",
         [4] = "4x",
         [8] = "8x",
-    }, function()
+    }, { 1, 2, 4, 8 }, function()
         return tonumber(SafeGetCVar("gxMultisample", "1")) or 1
     end, function(val)
         SafeSetCVar("gxMultisample", val)
@@ -279,11 +345,17 @@ local function BuildGraphicsPanel(parent)
         [4] = "4x " .. anisoText,
         [5] = "8x " .. anisoText,
         [6] = "16x " .. anisoText,
-    }, function()
+    }, { 1, 2, 3, 4, 5, 6 }, function()
         return tonumber(SafeGetCVar("textureFilteringMode", "1")) or 1
     end, function(val)
         SafeSetCVar("textureFilteringMode", val)
         SafeRestartGx()
+    end)
+
+    AddCheckbox(Text("PROJECTED_TEXTURES", "Projected Textures"), function()
+        return SafeGetCVar("projectedTextures", "1") == "1"
+    end, function(val)
+        SafeSetCVar("projectedTextures", val and "1" or "0")
     end)
 
     AddDropdown(Text("SHADOW_QUALITY", "Shadow Quality"), {
@@ -292,11 +364,22 @@ local function BuildGraphicsPanel(parent)
         [2] = Text("VIDEO_OPTIONS_FAIR", "Fair"),
         [3] = Text("VIDEO_OPTIONS_HIGH", "High"),
         [4] = Text("VIDEO_OPTIONS_ULTRA", "Ultra"),
-    }, function()
+    }, { 0, 1, 2, 3, 4 }, function()
         return tonumber(SafeGetCVar("extShadowQuality", nil)) or tonumber(SafeGetCVar("shadowMode", "0")) or 0
     end, function(val)
         SafeSetCVar("extShadowQuality", val)
         SafeSetCVar("shadowMode", val)
+    end)
+
+    AddDropdown(Text("LIQUID_DETAIL", "Liquid Detail"), {
+        [0] = Text("VIDEO_OPTIONS_LOW", "Low"),
+        [1] = Text("VIDEO_OPTIONS_FAIR", "Fair"),
+        [2] = Text("VIDEO_OPTIONS_HIGH", "High"),
+        [3] = Text("VIDEO_OPTIONS_ULTRA", "Ultra"),
+    }, { 0, 1, 2, 3 }, function()
+        return tonumber(SafeGetCVar("waterDetail", "1")) or 1
+    end, function(val)
+        SafeSetCVar("waterDetail", val)
     end)
 
     AddDropdown(Text("WEATHER_DETAIL", "Weather Density"), {
@@ -304,10 +387,16 @@ local function BuildGraphicsPanel(parent)
         [1] = Text("VIDEO_OPTIONS_LOW", "Low"),
         [2] = Text("VIDEO_OPTIONS_FAIR", "Medium"),
         [3] = Text("VIDEO_OPTIONS_HIGH", "High"),
-    }, function()
+    }, { 0, 1, 2, 3 }, function()
         return tonumber(SafeGetCVar("weatherDensity", "2")) or 2
     end, function(val)
         SafeSetCVar("weatherDensity", val)
+    end)
+
+    AddSlider(Text("PARTICLE_DENSITY", "Particle Density"), 0.1, 1.0, 0.1, function()
+        return tonumber(SafeGetCVar("particleDensity", "1.0")) or 1.0
+    end, function(val)
+        SafeSetCVar("particleDensity", val)
     end)
 
     AddCheckbox(Text(nil, "Fullscreen Glow"), function()
@@ -325,7 +414,7 @@ local function BuildGraphicsPanel(parent)
     yOffset = yOffset + 10
 
     -- Advanced Graphics
-    AddHeader(Text(nil, "Advanced Graphics"))
+    AddHeader(Text("ADVANCED_LABEL", "Advanced Graphics"))
 
     AddSlider(Text("FARCLIP", "View Distance"), 177, 1600, 50, function()
         return tonumber(SafeGetCVar("farclip", "777")) or 777
@@ -387,7 +476,7 @@ local function BuildGraphicsPanel(parent)
         SafeSetCVar("maxFPSBk", val)
     end)
 
-    content:SetHeight(math.max(yOffset + 30, 900))
+    content:SetHeight(math.max(yOffset + 40, 1100))
     return scroll
 end
 
@@ -403,7 +492,7 @@ local function BuildAudioPanel(parent)
     end
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(parent:GetWidth() - 40, 700)
+    content:SetSize(parent:GetWidth() - 40, 750)
     scroll:SetScrollChild(content)
 
     local yOffset = 10
@@ -522,7 +611,7 @@ local function BuildAudioPanel(parent)
         if cfg then cfg.enableHRTF = val and true or false end
     end)
 
-    content:SetHeight(math.max(yOffset + 30, 600))
+    content:SetHeight(math.max(yOffset + 30, 650))
     return scroll
 end
 
@@ -537,10 +626,13 @@ local function BuildKeybindingsPanel(parent)
     local charCheck = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
     charCheck:SetSize(20, 20)
     charCheck:SetPoint("TOPLEFT", container, "TOPLEFT", 10, -4)
+    if FUI and FUI.SkinCheckButton then
+        pcall(FUI.SkinCheckButton, charCheck)
+    end
     local checkText = charCheck:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    checkText:SetPoint("LEFT", charCheck, "RIGHT", 4, 1)
-    checkText:SetText(CHARACTER_SPECIFIC_KEYBINDINGS or "Character Specific Keybindings")
-    charCheck:SetChecked(GetCurrentBindingSet() == 2)
+    checkText:SetPoint("LEFT", charCheck, "RIGHT", 6, 1)
+    checkText:SetText(Text("CHARACTER_SPECIFIC_KEYBINDINGS", "Character Specific Keybindings"))
+    charCheck:SetChecked(GetCurrentBindingSet and GetCurrentBindingSet() == 2)
     charCheck:SetScript("OnClick", function(self)
         if self:GetChecked() then
             LoadBindings(2)
@@ -556,7 +648,7 @@ local function BuildKeybindingsPanel(parent)
 
     local catDropdown = CreateFrame("Frame", "DragonUI_VideoKeybindCatDropdown", container, "UIDropDownMenuTemplate")
     catDropdown:SetPoint("TOPLEFT", charCheck, "BOTTOMLEFT", -16, -6)
-    UIDropDownMenu_SetWidth(catDropdown, 200)
+    UIDropDownMenu_SetWidth(catDropdown, 220)
 
     local scroll = CreateFrame("ScrollFrame", "DragonUI_VideoKeybindScroll", container, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", catDropdown, "BOTTOMLEFT", 20, -6)
@@ -578,19 +670,25 @@ local function BuildKeybindingsPanel(parent)
         local current = nil
         local num = GetNumBindings()
         for i = 1, num do
-            local command, category = GetBinding(i)
-            if category then
-                current = { name = _G["BINDING_HEADER_" .. category] or category, raw = category, bindings = {} }
-                list[#list + 1] = current
-            elseif command and current then
-                local label = _G["BINDING_NAME_" .. command] or command
-                local key1, key2 = GetBindingKey(command)
-                current.bindings[#current.bindings + 1] = {
-                    command = command,
-                    label = label,
-                    key1 = key1,
-                    key2 = key2,
-                }
+            local command, key1, key2 = GetBinding(i)
+            if command then
+                if string.sub(command, 1, 6) == "HEADER" then
+                    local headerKey = string.sub(command, 8)
+                    local headerText = _G["BINDING_HEADER_" .. headerKey] 
+                        or _G["BINDING_" .. command] 
+                        or _G[command] 
+                        or headerKey
+                    current = { name = headerText, raw = headerKey, bindings = {} }
+                    list[#list + 1] = current
+                elseif current then
+                    local label = _G["BINDING_NAME_" .. command] or command
+                    current.bindings[#current.bindings + 1] = {
+                        command = command,
+                        label = label,
+                        key1 = key1,
+                        key2 = key2,
+                    }
+                end
             end
         end
         return list
@@ -607,7 +705,7 @@ local function BuildKeybindingsPanel(parent)
     local function StopListening()
         keyListener:Hide()
         if listeningButton then
-            local origText = listeningButton._origText or NOT_BOUND or "Not Bound"
+            local origText = listeningButton._origText or Text("NOT_BOUND", "Not Bound")
             listeningButton:SetText(origText)
             listeningButton = nil
         end
@@ -646,7 +744,7 @@ local function BuildKeybindingsPanel(parent)
     local function StartListening(btn, cmd, slot)
         listeningButton = btn
         btn._origText = btn:GetText()
-        btn:SetText("|cffffff00" .. (PRESS_KEY or "Press a key...") .. "|r")
+        btn:SetText("|cffffff00" .. Text("PRESS_KEY", "Press a key...") .. "|r")
         keyListener:Show()
     end
 
@@ -668,15 +766,15 @@ local function BuildKeybindingsPanel(parent)
                 lbl:SetPoint("RIGHT", row, "LEFT", 280, 0)
                 row.label = lbl
 
-                local b1 = FUI.CreateButton(row, "", 120, 20)
+                local b1 = FUI.CreateButton(row, "", 120, 22)
                 b1:SetPoint("LEFT", row, "LEFT", 290, 0)
                 row.btn1 = b1
 
-                local b2 = FUI.CreateButton(row, "", 120, 20)
+                local b2 = FUI.CreateButton(row, "", 120, 22)
                 b2:SetPoint("LEFT", b1, "RIGHT", 8, 0)
                 row.btn2 = b2
 
-                local unbind = FUI.CreateButton(row, "X", 22, 20)
+                local unbind = FUI.CreateButton(row, "X", 24, 22)
                 unbind:SetPoint("LEFT", b2, "RIGHT", 6, 0)
                 row.unbind = unbind
 
@@ -690,12 +788,12 @@ local function BuildKeybindingsPanel(parent)
             row.label:SetText(item.label)
 
             local k1, k2 = GetBindingKey(item.command)
-            row.btn1:SetText(k1 or ("|cff808080" .. (NOT_BOUND or "Not Bound") .. "|r"))
+            row.btn1:SetText(k1 or ("|cff808080" .. Text("NOT_BOUND", "Not Bound") .. "|r"))
             row.btn1.command = item.command
             row.btn1.slot = 1
             row.btn1:SetScript("OnClick", function(self) StartListening(self, item.command, 1) end)
 
-            row.btn2:SetText(k2 or ("|cff808080" .. (NOT_BOUND or "Not Bound") .. "|r"))
+            row.btn2:SetText(k2 or ("|cff808080" .. Text("NOT_BOUND", "Not Bound") .. "|r"))
             row.btn2.command = item.command
             row.btn2.slot = 2
             row.btn2:SetScript("OnClick", function(self) StartListening(self, item.command, 2) end)
@@ -751,6 +849,65 @@ local function BuildKeybindingsPanel(parent)
 end
 
 -- ============================================================================
+-- GAME CATEGORY RESOLUTION (3.3.5a NATIVE PANELS + CUSTOM)
+-- ============================================================================
+
+local function GetGameplayCategories()
+    local cats = {}
+    local seen = {}
+
+    local nativeList = InterfaceOptionsFrameCategories or {}
+    for _, p in ipairs(nativeList) do
+        if p and p.name and not seen[p] then
+            seen[p] = true
+            local displayName = p.name
+            if p == InterfaceOptionsDisplayPanel or p:GetName() == "InterfaceOptionsDisplayPanel" then
+                displayName = Text("DISPLAY", "Display")
+            end
+            cats[#cats + 1] = {
+                id = p:GetName() or p.name,
+                name = displayName,
+                panel = p,
+                parent = p.parent,
+            }
+        end
+    end
+
+    if #cats == 0 then
+        local fallbackList = {
+            { id = "InterfaceOptionsControlsPanel",   name = Text("CONTROLS_LABEL", "Controls"), panelName = "InterfaceOptionsControlsPanel" },
+            { id = "InterfaceOptionsCombatPanel",     name = Text("COMBAT_LABEL", "Combat"), panelName = "InterfaceOptionsCombatPanel" },
+            { id = "InterfaceOptionsDisplayPanel",    name = Text("DISPLAY", "Display"), panelName = "InterfaceOptionsDisplayPanel" },
+            { id = "InterfaceOptionsObjectivesPanel", name = Text("OBJECTIVES_LABEL", "Quests"), panelName = "InterfaceOptionsObjectivesPanel" },
+            { id = "InterfaceOptionsSocialPanel",     name = Text("SOCIAL_LABEL", "Social"), panelName = "InterfaceOptionsSocialPanel" },
+            { id = "InterfaceOptionsActionBarsPanel", name = Text("ACTIONBARS_LABEL", "Action Bars"), panelName = "InterfaceOptionsActionBarsPanel" },
+            { id = "InterfaceOptionsNamesPanel",      name = Text("NAMES_LABEL", "Names"), panelName = "InterfaceOptionsNamesPanel" },
+            { id = "InterfaceOptionsCombatTextPanel", name = Text("COMBAT_TEXT_LABEL", "Combat Text"), panelName = "InterfaceOptionsCombatTextPanel" },
+            { id = "InterfaceOptionsStatusTextPanel", name = Text("STATUS_TEXT_LABEL", "Status Text"), panelName = "InterfaceOptionsStatusTextPanel" },
+            { id = "InterfaceOptionsUnitFramePanel",  name = Text("UNITFRAMES_LABEL", "Unit Frames"), panelName = "InterfaceOptionsUnitFramePanel" },
+            { id = "InterfaceOptionsBuffsPanel",      name = Text("BUFFS_LABEL", "Buffs & Debuffs"), panelName = "InterfaceOptionsBuffsPanel" },
+            { id = "InterfaceOptionsCameraPanel",     name = Text("CAMERA_LABEL", "Camera"), panelName = "InterfaceOptionsCameraPanel" },
+            { id = "InterfaceOptionsMousePanel",      name = Text("MOUSE_LABEL", "Mouse"), panelName = "InterfaceOptionsMousePanel" },
+            { id = "InterfaceOptionsHelpPanel",       name = Text("HELP_LABEL", "Help"), panelName = "InterfaceOptionsHelpPanel" },
+        }
+        for _, item in ipairs(fallbackList) do
+            if _G[item.panelName] then
+                item.panel = _G[item.panelName]
+                cats[#cats + 1] = item
+            end
+        end
+    end
+
+    cats[#cats + 1] = {
+        id = "keybindings",
+        name = Text("KEY_BINDINGS", "Keybindings"),
+        custom = "keybindings",
+    }
+
+    return cats
+end
+
+-- ============================================================================
 -- MAIN WINDOW CREATION
 -- ============================================================================
 
@@ -760,7 +917,7 @@ local function CreateWindow()
     local f = FUI.CreateWindow("DragonUI_GameMenuOptions", UIParent, {
         width    = WINDOW_WIDTH,
         height   = WINDOW_HEIGHT,
-        title    = OPTIONS or "Options",
+        title    = Text("OPTIONS", "Options"),
         inset    = true,
         strata   = "DIALOG",
         movable  = true,
@@ -773,7 +930,7 @@ local function CreateWindow()
 
     -- Top Tabs: [ Game ] [ AddOns ]
     local gameTab = FUI.CreateTab(f)
-    gameTab:SetTabText(GAME or "Game")
+    gameTab:SetTabText(Text("GAME", "Game"))
     gameTab:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -32)
     gameTab:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
@@ -782,7 +939,7 @@ local function CreateWindow()
     f.gameTab = gameTab
 
     local addonsTab = FUI.CreateTab(f)
-    addonsTab:SetTabText(ADDONS or "AddOns")
+    addonsTab:SetTabText(Text("ADDONS", "AddOns"))
     addonsTab:SetPoint("LEFT", gameTab, "RIGHT", 4, 0)
     addonsTab:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
@@ -804,7 +961,7 @@ local function CreateWindow()
 
     local hint = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     hint:SetPoint("LEFT", searchBox, "LEFT", 22, 0)
-    hint:SetText(SEARCH or "Search...")
+    hint:SetText(Text("SEARCH", "Search..."))
     searchBox.hint = hint
 
     searchBox:SetScript("OnTextChanged", function(self)
@@ -825,16 +982,24 @@ local function CreateWindow()
 
     local inset = f.Inset
 
-    -- Left Category Sidebar
-    local list = CreateFrame("Frame", nil, inset)
-    list:SetPoint("TOPLEFT", inset, "TOPLEFT", 2, -LIST_MARGIN_TOP)
-    list:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 2, 8)
-    list:SetWidth(LIST_WIDTH)
-    f.categoryList = list
+    -- Left Category Sidebar (SCROLLABLE)
+    local listScroll = CreateFrame("ScrollFrame", "DragonUI_GameMenuCatScroll", inset, "UIPanelScrollFrameTemplate")
+    listScroll:SetPoint("TOPLEFT", inset, "TOPLEFT", 2, -LIST_MARGIN_TOP)
+    listScroll:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 2, 8)
+    listScroll:SetWidth(LIST_WIDTH)
+    if FUI and FUI.SkinScrollBar then
+        pcall(FUI.SkinScrollBar, listScroll)
+    end
+
+    local listContent = CreateFrame("Frame", nil, listScroll)
+    listContent:SetSize(LIST_WIDTH - 24, 800)
+    listScroll:SetScrollChild(listContent)
+    f.categoryList = listContent
+    f.categoryScroll = listScroll
 
     -- Right Content Area
     local content = CreateFrame("Frame", nil, inset)
-    content:SetPoint("TOPLEFT", list, "TOPRIGHT", LIST_GAP, 0)
+    content:SetPoint("TOPLEFT", listScroll, "TOPRIGHT", LIST_GAP, 0)
     content:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -6, 6)
     f.content = content
 
@@ -856,7 +1021,7 @@ local function CreateWindow()
     f.panelHost = panelHost
 
     -- Footer Buttons
-    local closeBtn = FUI.CreateButton(f, CLOSE or "Close", 100, 22)
+    local closeBtn = FUI.CreateButton(f, Text("CLOSE", "Close"), 100, 22)
     closeBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 14)
     closeBtn:SetScript("OnClick", function()
         PlaySound("igMainMenuClose")
@@ -864,7 +1029,7 @@ local function CreateWindow()
     end)
     f.closeBtn = closeBtn
 
-    local okayBtn = FUI.CreateButton(f, OKAY or "Okay", 100, 22)
+    local okayBtn = FUI.CreateButton(f, Text("OKAY", "Okay"), 100, 22)
     okayBtn:SetPoint("RIGHT", closeBtn, "LEFT", -8, 0)
     okayBtn:SetScript("OnClick", function()
         VideoOptionsModule:SaveAll()
@@ -873,7 +1038,7 @@ local function CreateWindow()
     end)
     f.okayBtn = okayBtn
 
-    local defaultBtn = FUI.CreateButton(f, DEFAULTS or "Defaults", 110, 22)
+    local defaultBtn = FUI.CreateButton(f, Text("DEFAULTS", "Defaults"), 110, 22)
     defaultBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 20, 14)
     defaultBtn:SetScript("OnClick", function()
         VideoOptionsModule:ResetCurrentDefault()
@@ -886,8 +1051,33 @@ local function CreateWindow()
 end
 
 -- ============================================================================
--- CATEGORY LIST RENDERING
+-- CATEGORY LIST RENDERING (TREE + EXPAND/COLLAPSE + SCROLL)
 -- ============================================================================
+
+local function BuildTree(items)
+    local roots = {}
+    local byName = {}
+
+    for _, it in ipairs(items) do
+        local key = it.name or (it.panel and it.panel.name) or it.id
+        byName[key] = it
+        it.children = {}
+    end
+
+    for _, it in ipairs(items) do
+        local parentKey = it.parent or (it.panel and it.panel.parent)
+        if parentKey and byName[parentKey] then
+            local parent = byName[parentKey]
+            parent.hasChildren = true
+            parent.children[#parent.children + 1] = it
+            it.parentItem = parent
+        else
+            roots[#roots + 1] = it
+        end
+    end
+
+    return roots
+end
 
 function VideoOptionsModule:BuildCategoryButtons()
     local f = self.frame
@@ -895,6 +1085,7 @@ function VideoOptionsModule:BuildCategoryButtons()
 
     for _, btn in ipairs(self.categoryButtons) do
         btn:Hide()
+        if btn.toggleBtn then btn.toggleBtn:Hide() end
     end
     for _, hdr in ipairs(self.groupHeaders) do
         hdr:Hide()
@@ -909,6 +1100,13 @@ function VideoOptionsModule:BuildCategoryButtons()
         local btn = self.categoryButtons[btnIndex]
         if not btn then
             btn = FUI.CreateCategoryButton(f.categoryList)
+            local toggle = CreateFrame("Button", nil, btn)
+            toggle:SetSize(16, 16)
+            toggle:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            local tText = toggle:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            tText:SetPoint("CENTER")
+            toggle.text = tText
+            btn.toggleBtn = toggle
             self.categoryButtons[btnIndex] = btn
         end
         return btn
@@ -927,61 +1125,102 @@ function VideoOptionsModule:BuildCategoryButtons()
     local query = self.frame.searchBox and self.frame.searchBox:GetText()
     query = query and query:lower():gsub("^%s+", ""):gsub("%s+$", "") or ""
 
-    if self.activeTab == "game" then
-        for gIdx, group in ipairs(GAME_GROUPS) do
-            local matchingCats = {}
-            for _, cat in ipairs(group.categories) do
-                if query == "" or (cat.name and cat.name:lower():find(query, 1, true)) then
-                    matchingCats[#matchingCats + 1] = cat
-                end
-            end
+    local function RenderItem(item, indent)
+        local btn = GetButton()
+        btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 4, -yOffset)
+        btn:SetText(item.name or "Unknown")
+        btn:SetIndent(indent + (item.hasChildren and 16 or 0))
+        btn.catData = item
+        btn:SetSelected(self.activeCategory and (self.activeCategory.id == item.id or (item.panel and self.activeCategory.panel == item.panel)))
 
-            if #matchingCats > 0 then
-                local hdr = GetHeader()
-                hdr:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 0, -yOffset)
-                hdr:SetIndex(gIdx)
-                hdr:SetLabel(group.label)
-                hdr:Show()
-                yOffset = yOffset + LIST_HEADER_H + 4
+        btn:SetScript("OnClick", function()
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            VideoOptionsModule:SelectCategory(item)
+        end)
 
-                for _, cat in ipairs(matchingCats) do
-                    local btn = GetButton()
-                    btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 6, -yOffset)
-                    btn:SetText(cat.name)
-                    btn:SetIndent(0)
-                    btn.catData = cat
-                    btn:SetSelected(self.activeCategory and self.activeCategory.id == cat.id)
-                    btn:SetScript("OnClick", function()
-                        PlaySound("igMainMenuOptionCheckBoxOn")
-                        VideoOptionsModule:SelectCategory(cat)
-                    end)
-                    btn:Show()
-                    yOffset = yOffset + ROW_HEIGHT + 2
+        if item.hasChildren then
+            local isCollapsed = (self.collapsedState[item.id or item.name] == true)
+            if query ~= "" then isCollapsed = false end
+            btn.toggleBtn:SetPoint("LEFT", btn, "LEFT", indent + 2, 0)
+            btn.toggleBtn.text:SetText(isCollapsed and "|cffFFD100+|r" or "|cffFFD100-|r")
+            btn.toggleBtn:SetScript("OnClick", function()
+                VideoOptionsModule.collapsedState[item.id or item.name] = not isCollapsed
+                VideoOptionsModule:BuildCategoryButtons()
+            end)
+            btn.toggleBtn:Show()
+        else
+            btn.toggleBtn:Hide()
+        end
+
+        btn:Show()
+        yOffset = yOffset + ROW_HEIGHT + 2
+
+        if item.hasChildren and (self.collapsedState[item.id or item.name] ~= true or query ~= "") then
+            for _, child in ipairs(item.children) do
+                if query == "" or (child.name and child.name:lower():find(query, 1, true)) or (item.name and item.name:lower():find(query, 1, true)) then
+                    RenderItem(child, indent + 16)
                 end
-                yOffset = yOffset + GROUP_GAP
             end
         end
+    end
+
+    if self.activeTab == "game" then
+        local gameplayCats = GetGameplayCategories()
+        local tree = BuildTree(gameplayCats)
+
+        local hdr1 = GetHeader()
+        hdr1:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 0, -yOffset)
+        hdr1:SetIndex(1)
+        hdr1:SetLabel(Text("GAMEPLAY", "Gameplay"))
+        hdr1:Show()
+        yOffset = yOffset + LIST_HEADER_H + 4
+
+        for _, root in ipairs(tree) do
+            if query == "" or (root.name and root.name:lower():find(query, 1, true)) then
+                RenderItem(root, 0)
+            end
+        end
+
+        yOffset = yOffset + GROUP_GAP
+
+        local hdr2 = GetHeader()
+        hdr2:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 0, -yOffset)
+        hdr2:SetIndex(2)
+        hdr2:SetLabel(Text("SYSTEM", "System"))
+        hdr2:Show()
+        yOffset = yOffset + LIST_HEADER_H + 4
+
+        local systemCats = {
+            { id = "graphics", name = Text("GRAPHICS_LABEL", "Graphics"), custom = "graphics" },
+            { id = "audio",    name = Text("SOUND_LABEL", "Audio"),       custom = "audio" },
+        }
+        for _, sysCat in ipairs(systemCats) do
+            if query == "" or (sysCat.name and sysCat.name:lower():find(query, 1, true)) then
+                RenderItem(sysCat, 0)
+            end
+        end
+
     else
         -- AddOns Tab
-        local addons = INTERFACEOPTIONS_ADDONCATEGORIES or {}
+        local rawAddons = INTERFACEOPTIONS_ADDONCATEGORIES or {}
+        local addonItems = {}
+        for i, p in ipairs(rawAddons) do
+            local name = p.name or (p.GetName and p:GetName()) or ("AddOn " .. i)
+            addonItems[#addonItems + 1] = {
+                id = "addon_" .. i,
+                name = name,
+                panel = p,
+                parent = p.parent,
+            }
+        end
+
+        local tree = BuildTree(addonItems)
         local count = 0
-        for _, addonPanel in ipairs(addons) do
-            local name = addonPanel.name or (addonPanel.GetName and addonPanel:GetName()) or "Unknown"
-            if query == "" or name:lower():find(query, 1, true) then
+
+        for _, root in ipairs(tree) do
+            if query == "" or (root.name and root.name:lower():find(query, 1, true)) then
                 count = count + 1
-                local btn = GetButton()
-                btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 6, -yOffset)
-                btn:SetText(name)
-                btn:SetIndent(addonPanel.parent and 14 or 0)
-                local catItem = { id = "addon_" .. count, name = name, addonPanel = addonPanel }
-                btn.catData = catItem
-                btn:SetSelected(self.activeCategory and self.activeCategory.addonPanel == addonPanel)
-                btn:SetScript("OnClick", function()
-                    PlaySound("igMainMenuOptionCheckBoxOn")
-                    VideoOptionsModule:SelectCategory(catItem)
-                end)
-                btn:Show()
-                yOffset = yOffset + ROW_HEIGHT + 2
+                RenderItem(root, 0)
             end
         end
 
@@ -989,20 +1228,24 @@ function VideoOptionsModule:BuildCategoryButtons()
             local hdr = GetHeader()
             hdr:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 0, -yOffset)
             hdr:SetIndex(1)
-            hdr:SetLabel(ADDONS or "AddOns")
+            hdr:SetLabel(Text("ADDONS", "AddOns"))
             hdr:Show()
             yOffset = yOffset + LIST_HEADER_H + 4
 
             local btn = GetButton()
-            btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 6, -yOffset)
-            btn:SetText("|cff808080" .. (EMPTY or "None") .. "|r")
+            btn:SetPoint("TOPLEFT", f.categoryList, "TOPLEFT", 4, -yOffset)
+            btn:SetText("|cff808080" .. Text("NONE", "None") .. "|r")
             btn:SetIndent(0)
             btn.catData = nil
             btn:SetSelected(false)
             btn:SetScript("OnClick", nil)
+            btn.toggleBtn:Hide()
             btn:Show()
+            yOffset = yOffset + ROW_HEIGHT + 2
         end
     end
+
+    f.categoryList:SetHeight(math.max(yOffset + 20, f.categoryScroll:GetHeight() or 500))
 end
 
 function VideoOptionsModule:FilterCategories(query)
@@ -1026,7 +1269,7 @@ function VideoOptionsModule:SelectCategory(cat)
 
     for _, btn in ipairs(self.categoryButtons) do
         if btn:IsShown() and btn.catData then
-            btn:SetSelected(btn.catData.id == cat.id or (cat.addonPanel and btn.catData.addonPanel == cat.addonPanel))
+            btn:SetSelected(btn.catData.id == cat.id or (cat.panel and btn.catData.panel == cat.panel))
         end
     end
 
@@ -1053,24 +1296,18 @@ function VideoOptionsModule:SelectCategory(cat)
         if self.customPanels.keybindings.RefreshBindings then
             self.customPanels.keybindings.RefreshBindings()
         end
-    elseif cat.addonPanel then
-        local p = cat.addonPanel
-        p:SetParent(panelHost)
-        p:ClearAllPoints()
-        p:SetPoint("TOPLEFT", panelHost, "TOPLEFT", 8, -6)
-        p:SetPoint("BOTTOMRIGHT", panelHost, "BOTTOMRIGHT", -8, 6)
-        if p.refresh then pcall(p.refresh, p) end
-        p:Show()
-        self.activePanel = p
-    elseif cat.panelName and _G[cat.panelName] then
-        local p = _G[cat.panelName]
-        p:SetParent(panelHost)
-        p:ClearAllPoints()
-        p:SetPoint("TOPLEFT", panelHost, "TOPLEFT", 8, -6)
-        p:SetPoint("BOTTOMRIGHT", panelHost, "BOTTOMRIGHT", -8, 6)
-        if p.refresh then pcall(p.refresh, p) end
-        p:Show()
-        self.activePanel = p
+    else
+        local p = cat.panel or (cat.panelName and _G[cat.panelName])
+        if p then
+            p:SetParent(panelHost)
+            p:ClearAllPoints()
+            p:SetPoint("TOPLEFT", panelHost, "TOPLEFT", 8, -6)
+            p:SetPoint("BOTTOMRIGHT", panelHost, "BOTTOMRIGHT", -8, 6)
+            SkinNativePanel(p)
+            if p.refresh then pcall(p.refresh, p) end
+            p:Show()
+            self.activePanel = p
+        end
     end
 end
 
@@ -1085,14 +1322,16 @@ function VideoOptionsModule:SelectTab(tabKey)
     self:BuildCategoryButtons()
 
     if self.activeTab == "game" then
-        local first = GAME_GROUPS[1] and GAME_GROUPS[1].categories[1]
-        self:SelectCategory(first)
+        local gameplayCats = GetGameplayCategories()
+        if gameplayCats[1] then
+            self:SelectCategory(gameplayCats[1])
+        end
     else
-        local addons = INTERFACEOPTIONS_ADDONCATEGORIES or {}
-        if addons[1] then
-            self:SelectCategory({ id = "addon_1", name = addons[1].name, addonPanel = addons[1] })
+        local rawAddons = INTERFACEOPTIONS_ADDONCATEGORIES or {}
+        if rawAddons[1] then
+            self:SelectCategory({ id = "addon_1", name = rawAddons[1].name, panel = rawAddons[1] })
         else
-            f.headerTitle:SetText(ADDONS or "AddOns")
+            f.headerTitle:SetText(Text("ADDONS", "AddOns"))
             if self.activePanel then self.activePanel:Hide(); self.activePanel = nil end
         end
     end
@@ -1121,12 +1360,12 @@ function VideoOptionsModule:SaveAll()
     for _, p in ipairs(addons) do
         if p.okay then pcall(p.okay, p) end
     end
-    for _, group in ipairs(GAME_GROUPS) do
-        for _, cat in ipairs(group.categories) do
-            if cat.panelName and _G[cat.panelName] and _G[cat.panelName].okay then
-                pcall(_G[cat.panelName].okay, _G[cat.panelName])
-            end
-        end
+    local nativeList = InterfaceOptionsFrameCategories or {}
+    for _, p in ipairs(nativeList) do
+        if p.okay then pcall(p.okay, p) end
+    end
+    if SaveBindings and GetCurrentBindingSet then
+        pcall(SaveBindings, GetCurrentBindingSet())
     end
 end
 
@@ -1140,7 +1379,7 @@ function VideoOptionsModule:Open(tabOrCat, specificCat)
             local addons = INTERFACEOPTIONS_ADDONCATEGORIES or {}
             for i, p in ipairs(addons) do
                 if (p.name and p.name == specificCat) or p == specificCat then
-                    self:SelectCategory({ id = "addon_" .. i, name = p.name, addonPanel = p })
+                    self:SelectCategory({ id = "addon_" .. i, name = p.name, panel = p })
                     break
                 end
             end
@@ -1148,13 +1387,19 @@ function VideoOptionsModule:Open(tabOrCat, specificCat)
     else
         self:SelectTab("game")
         local target = specificCat or tabOrCat or "controls"
-        for _, group in ipairs(GAME_GROUPS) do
-            for _, cat in ipairs(group.categories) do
-                if cat.id == target then
-                    self:SelectCategory(cat)
-                    return
-                end
+        local gameplayCats = GetGameplayCategories()
+        for _, cat in ipairs(gameplayCats) do
+            if cat.id == target or (cat.panel and cat.panel:GetName() == target) then
+                self:SelectCategory(cat)
+                return
             end
+        end
+        if target == "graphics" then
+            self:SelectCategory({ id = "graphics", name = Text("GRAPHICS_LABEL", "Graphics"), custom = "graphics" })
+        elseif target == "audio" then
+            self:SelectCategory({ id = "audio", name = Text("SOUND_LABEL", "Audio"), custom = "audio" })
+        elseif target == "keybindings" then
+            self:SelectCategory({ id = "keybindings", name = Text("KEY_BINDINGS", "Keybindings"), custom = "keybindings" })
         end
     end
 end
