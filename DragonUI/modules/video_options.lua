@@ -72,15 +72,13 @@ function VideoOptionsModule:ApplySettings()
     end
     if cfg.horizonFarclip then
         SafeSetCVar("horizonFarclip", cfg.horizonFarclip)
+        SafeSetCVar("horizonClip", cfg.horizonFarclip)
     end
     if cfg.groundEffectDist then
         SafeSetCVar("groundEffectDist", cfg.groundEffectDist)
     end
     if cfg.groundEffectDensity then
         SafeSetCVar("groundEffectDensity", cfg.groundEffectDensity)
-    end
-    if cfg.detailDoodadAlpha then
-        SafeSetCVar("detailDoodadAlpha", cfg.detailDoodadAlpha)
     end
     if cfg.cameraMaxFactor then
         SafeSetCVar("cameraDistanceMaxFactor", cfg.cameraMaxFactor)

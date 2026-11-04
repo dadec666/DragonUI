@@ -13,10 +13,6 @@ function addon.SetSystemSubTab(key)
     activeSubTab = key or "graphics"
 end
 
--- Safe localized string resolver:
--- 1. Checks Blizzard GlobalStrings in _G[globalKey]
--- 2. Safely falls back to LO[fallbackKey] via pcall (preventing AceLocale Missing entry errors)
--- 3. Falls back to literal string
 local function Text(globalKey, fallbackKey, defaultText)
     if globalKey and _G[globalKey] and type(_G[globalKey]) == "string" and _G[globalKey] ~= "" then
         return _G[globalKey]
@@ -29,6 +25,12 @@ local function Text(globalKey, fallbackKey, defaultText)
         end
     end
     return defaultText or key or ""
+end
+
+local function CleanSlider(slider)
+    if not slider then return end
+    if slider.lowtext then slider.lowtext:Hide() end
+    if slider.hightext then slider.hightext:Hide() end
 end
 
 local subTabs = {
@@ -157,7 +159,7 @@ local function BuildGraphicsSubTab(scroll)
     end
 
     C:AddToggle(displaySection, {
-        label = Text("VERTICAL_SYNC", "Vertical Sync (VSync)", "Vertical Sync (VSync)"),
+        label = Text("VERTICAL_SYNC", "Vertical Sync", "Vertical Sync"),
         desc = Text("OPTION_TOOLTIP_VERTICAL_SYNC", "Synchronize frame rate with monitor refresh rate to prevent screen tearing.", "Synchronize frame rate with monitor refresh rate to prevent screen tearing."),
         getFunc = function() return SafeGetCVar("gxVSync") == "1" end,
         setFunc = function(val)
@@ -195,69 +197,29 @@ local function BuildGraphicsSubTab(scroll)
         end,
     })
 
-    C:AddToggle(displaySection, {
-        label = Text("USE_UISCALE", "Use UI Scale", "Use UI Scale"),
-        desc = Text("OPTION_TOOLTIP_USE_UISCALE", "Enable custom user interface scaling.", "Enable custom user interface scaling."),
-        getFunc = function() return SafeGetCVar("useUiScale") == "1" end,
-        setFunc = function(val)
-            SafeSetCVar("useUiScale", val and "1" or "0")
-            Panel:SelectTab("system")
-        end,
-    })
-
-    C:AddSlider(displaySection, {
-        label = Text("UI_SCALE", "UI Scale", "UI Scale"),
-        desc = Text("OPTION_TOOLTIP_UI_SCALE", "Custom size of the user interface.", "Custom size of the user interface."),
-        min = 0.64,
-        max = 1.0,
-        step = 0.01,
-        default = 1.0,
-        getFunc = function() return tonumber(SafeGetCVar("uiscale", "1")) or 1.0 end,
-        setFunc = function(val) SafeSetCVar("uiscale", val) end,
-        disabled = function() return SafeGetCVar("useUiScale") ~= "1" end,
-        width = 220,
-    })
-
     -- Quality & Textures Section
     local qualitySection = C:AddSection(scroll, Text("GRAPHICS_QUALITY", "Graphics Quality", "Graphics Quality"))
 
-    local msFormats = { GetMultisampleFormats() }
-    if #msFormats > 0 then
-        local msValues = {}
-        for i, fmt in ipairs(msFormats) do
-            msValues[i] = tostring(fmt) .. "x"
-        end
-        C:AddDropdown(qualitySection, {
-            label = Text("MULTISAMPLE", "Anti-Aliasing", "Anti-Aliasing"),
-            desc = Text("OPTION_TOOLTIP_MULTISAMPLE", "Smooth jagged edges on polygons.", "Smooth jagged edges on polygons."),
-            values = msValues,
-            getFunc = function()
-                if GetCurrentMultisampleFormat then
-                    local cur = GetCurrentMultisampleFormat()
-                    if cur and cur > 0 then return cur end
-                end
-                return 1
-            end,
-            setFunc = function(val)
-                if SetMultisampleFormat then
-                    SetMultisampleFormat(val)
-                end
-                SafeRestartGx()
-            end,
-            width = 220,
-        })
-    end
-
     C:AddDropdown(qualitySection, {
-        label = Text("TEXTURE_DETAIL", "Texture Resolution", "Texture Resolution"),
-        desc = Text("OPTION_TOOLTIP_TEXTURE_DETAIL", "Detail level of world and character surface textures.", "Detail level of world and character surface textures."),
+        label = Text("MULTISAMPLE", "Anti-Aliasing", "Anti-Aliasing"),
+        desc = Text("OPTION_TOOLTIP_MULTISAMPLE", "Smooth jagged edges on polygons.", "Smooth jagged edges on polygons."),
         values = {
-            [0] = Text("VIDEO_OPTIONS_HIGH", "High", "High"),
-            [1] = Text("VIDEO_OPTIONS_FAIR", "Fair", "Fair"),
-            [2] = Text("VIDEO_OPTIONS_LOW", "Low", "Low"),
+            [1] = "1x (" .. Text("VIDEO_OPTIONS_OFF", "Off", "Off") .. ")",
+            [2] = "2x",
+            [4] = "4x",
+            [8] = "8x",
         },
-        getFunc = function() return tonumber(SafeGetCVar("baseMip", "0")) or 0 end,
-        setFunc = function(val) SafeSetCVar("baseMip", val) end,
+        getFunc = function()
+            local ms = tonumber(SafeGetCVar("gxMultisample", "1")) or 1
+            if ms == 8 then return 8
+            elseif ms == 4 then return 4
+            elseif ms == 2 then return 2
+            else return 1 end
+        end,
+        setFunc = function(val)
+            SafeSetCVar("gxMultisample", val)
+            SafeRestartGx()
+        end,
         width = 220,
     })
 
@@ -274,15 +236,11 @@ local function BuildGraphicsSubTab(scroll)
             [6] = "16x " .. anisoText,
         },
         getFunc = function() return tonumber(SafeGetCVar("textureFilteringMode", "1")) or 1 end,
-        setFunc = function(val) SafeSetCVar("textureFilteringMode", val) end,
+        setFunc = function(val)
+            SafeSetCVar("textureFilteringMode", val)
+            SafeRestartGx()
+        end,
         width = 220,
-    })
-
-    C:AddToggle(qualitySection, {
-        label = Text("PROJECTED_TEXTURES", "Projected Textures", "Projected Textures"),
-        desc = Text("OPTION_TOOLTIP_PROJECTED_TEXTURES", "Enable ground visual spell effects and impact marks (highly recommended).", "Enable ground visual spell effects and impact marks (highly recommended)."),
-        getFunc = function() return SafeGetCVar("projectedTextures") == "1" end,
-        setFunc = function(val) SafeSetCVar("projectedTextures", val and "1" or "0") end,
     })
 
     C:AddDropdown(qualitySection, {
@@ -297,30 +255,6 @@ local function BuildGraphicsSubTab(scroll)
         },
         getFunc = function() return tonumber(SafeGetCVar("shadowMode", "0")) or 0 end,
         setFunc = function(val) SafeSetCVar("shadowMode", val) end,
-        width = 220,
-    })
-
-    C:AddSlider(qualitySection, {
-        label = Text("PARTICLE_DENSITY", "Particle Density", "Particle Density"),
-        desc = Text("OPTION_TOOLTIP_PARTICLE_DENSITY", "Number of particles in spell effects, fires, and explosions.", "Number of particles in spell effects, fires, and explosions."),
-        min = 10,
-        max = 100,
-        step = 10,
-        default = 70,
-        getFunc = function() return tonumber(SafeGetCVar("particleDensity", "70")) or 70 end,
-        setFunc = function(val) SafeSetCVar("particleDensity", val) end,
-        width = 220,
-    })
-
-    C:AddSlider(qualitySection, {
-        label = Text("ENVIRONMENT_DETAIL", "Environment Detail", "Environment Detail"),
-        desc = Text("OPTION_TOOLTIP_ENVIRONMENT_DETAIL", "Density and quality of environmental models and structures.", "Density and quality of environmental models and structures."),
-        min = 0.5,
-        max = 1.5,
-        step = 0.1,
-        default = 1.0,
-        getFunc = function() return tonumber(SafeGetCVar("environmentDetail", "1")) or 1.0 end,
-        setFunc = function(val) SafeSetCVar("environmentDetail", val) end,
         width = 220,
     })
 
@@ -341,9 +275,8 @@ local function BuildGraphicsSubTab(scroll)
     -- Advanced Graphics / Over-capped CVars Section
     local advSection = C:AddSection(scroll, Text(nil, "Advanced Graphics", "Advanced Graphics"))
 
-    local viewDistText = Text("FARCLIP", "Farclip (View Distance)", "View Distance")
-    C:AddSlider(advSection, {
-        label = viewDistText .. " (farclip)",
+    local s1 = C:AddSlider(advSection, {
+        label = Text("FARCLIP", "View Distance", "View Distance"),
         desc = Text("OPTION_TOOLTIP_FARCLIP", "World view distance in game units (unlocked past Blizzard default).", "World view distance in game units (unlocked past Blizzard default)."),
         min = 177,
         max = 1600,
@@ -358,9 +291,10 @@ local function BuildGraphicsSubTab(scroll)
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(s1)
 
-    C:AddSlider(advSection, {
-        label = Text(nil, "Horizon Farclip", "Horizon Farclip") .. " (horizonFarclip)",
+    local s2 = C:AddSlider(advSection, {
+        label = Text(nil, "Horizon Farclip", "Horizon Farclip"),
         desc = Text(nil, "Horizon view distance (unlocked past Blizzard default).", "Horizon view distance (unlocked past Blizzard default)."),
         min = 500,
         max = 2112,
@@ -371,12 +305,14 @@ local function BuildGraphicsSubTab(scroll)
         setFunc = function(val)
             EnsureModuleTable("video_options").horizonFarclip = val
             SafeSetCVar("horizonFarclip", val)
+            SafeSetCVar("horizonClip", val)
         end,
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(s2)
 
-    C:AddSlider(advSection, {
+    local s3 = C:AddSlider(advSection, {
         label = Text("GROUND_EFFECT_DIST", "Ground Effect Distance", "Ground Effect Distance"),
         desc = Text("OPTION_TOOLTIP_GROUND_EFFECT_DIST", "Render distance for foliage, grass, and ground clutter.", "Render distance for foliage, grass, and ground clutter."),
         min = 40,
@@ -392,8 +328,9 @@ local function BuildGraphicsSubTab(scroll)
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(s3)
 
-    C:AddSlider(advSection, {
+    local s4 = C:AddSlider(advSection, {
         label = Text("GROUND_CLUTTER", "Ground Effect Density", "Ground Effect Density"),
         desc = Text("OPTION_TOOLTIP_GROUND_EFFECT_DENSITY", "Density of ground vegetation and clutter.", "Density of ground vegetation and clutter."),
         min = 16,
@@ -409,25 +346,9 @@ local function BuildGraphicsSubTab(scroll)
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(s4)
 
-    C:AddSlider(advSection, {
-        label = Text(nil, "Ground Effect Alpha", "Ground Effect Alpha"),
-        desc = Text(nil, "Opacity of foliage and ground clutter details.", "Opacity of foliage and ground clutter details."),
-        min = 0,
-        max = 100,
-        step = 10,
-        default = 100,
-        dbPath = "modules.video_options.detailDoodadAlpha",
-        getFunc = function() return GetModuleField("video_options", "detailDoodadAlpha") or 100 end,
-        setFunc = function(val)
-            EnsureModuleTable("video_options").detailDoodadAlpha = val
-            SafeSetCVar("detailDoodadAlpha", val)
-        end,
-        disabled = function() return not IsEnabled("video_options") end,
-        width = 240,
-    })
-
-    C:AddSlider(advSection, {
+    local s5 = C:AddSlider(advSection, {
         label = Text(nil, "Max Camera Distance Factor", "Max Camera Distance Factor"),
         desc = Text(nil, "Maximum camera distance zoom factor (unlocked up to 4.0).", "Maximum camera distance zoom factor (unlocked up to 4.0)."),
         min = 1.0,
@@ -443,8 +364,9 @@ local function BuildGraphicsSubTab(scroll)
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(s5)
 
-    C:AddSlider(advSection, {
+    local s6 = C:AddSlider(advSection, {
         label = Text(nil, "Max Foreground FPS", "Max Foreground FPS"),
         desc = Text(nil, "Maximum framerate while World of Warcraft is active (0 = unlimited).", "Maximum framerate while World of Warcraft is active (0 = unlimited)."),
         min = 0,
@@ -455,8 +377,9 @@ local function BuildGraphicsSubTab(scroll)
         setFunc = function(val) SafeSetCVar("maxFPS", val) end,
         width = 240,
     })
+    CleanSlider(s6)
 
-    C:AddSlider(advSection, {
+    local s7 = C:AddSlider(advSection, {
         label = Text(nil, "Max Background FPS", "Max Background FPS"),
         desc = Text(nil, "Maximum framerate while World of Warcraft is in the background.", "Maximum framerate while World of Warcraft is in the background."),
         min = 10,
@@ -467,6 +390,7 @@ local function BuildGraphicsSubTab(scroll)
         setFunc = function(val) SafeSetCVar("maxFPSBk", val) end,
         width = 240,
     })
+    CleanSlider(s7)
 end
 
 -- ============================================================================
@@ -532,7 +456,7 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" end,
     })
 
-    C:AddSlider(volSection, {
+    local v1 = C:AddSlider(volSection, {
         label = Text("MASTER_VOLUME", "Master Volume", "Master Volume"),
         desc = Text("OPTION_TOOLTIP_MASTER_VOLUME", "Overall volume level for all game sounds.", "Overall volume level for all game sounds."),
         min = 0,
@@ -545,8 +469,9 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" end,
         width = 240,
     })
+    CleanSlider(v1)
 
-    C:AddSlider(volSection, {
+    local v2 = C:AddSlider(volSection, {
         label = Text("SOUND_VOLUME", "Sound Effects Volume", "Sound Effects Volume"),
         desc = Text("OPTION_TOOLTIP_SOUND_VOLUME", "Volume of combat, spells, and UI sound effects.", "Volume of combat, spells, and UI sound effects."),
         min = 0,
@@ -559,8 +484,9 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" or SafeGetCVar("Sound_EnableSFX") ~= "1" end,
         width = 240,
     })
+    CleanSlider(v2)
 
-    C:AddSlider(volSection, {
+    local v3 = C:AddSlider(volSection, {
         label = Text("MUSIC_VOLUME", "Music Volume", "Music Volume"),
         desc = Text("OPTION_TOOLTIP_MUSIC_VOLUME", "Volume level of zone music and soundtracks.", "Volume level of zone music and soundtracks."),
         min = 0,
@@ -573,8 +499,9 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" or SafeGetCVar("Sound_EnableMusic") ~= "1" end,
         width = 240,
     })
+    CleanSlider(v3)
 
-    C:AddSlider(volSection, {
+    local v4 = C:AddSlider(volSection, {
         label = Text("AMBIENCE_VOLUME", "Ambience Volume", "Ambience Volume"),
         desc = Text("OPTION_TOOLTIP_AMBIENCE_VOLUME", "Volume level of ambient environmental sounds.", "Volume level of ambient environmental sounds."),
         min = 0,
@@ -587,6 +514,7 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return SafeGetCVar("Sound_EnableAllSound") ~= "1" or SafeGetCVar("Sound_EnableAmbience") ~= "1" end,
         width = 240,
     })
+    CleanSlider(v4)
 
     -- Sound Engine Section
     local engSection = C:AddSection(scroll, Text(nil, "Sound Engine", "Sound Engine"))
@@ -603,7 +531,7 @@ local function BuildAudioSubTab(scroll)
         width = 220,
     })
 
-    C:AddSlider(engSection, {
+    local sc = C:AddSlider(engSection, {
         label = Text("SOUND_CHANNELS", "Sound Channels", "Sound Channels"),
         desc = Text("OPTION_TOOLTIP_SOUND_CHANNELS", "Number of simultaneous sound channels allocated for audio playback.", "Number of simultaneous sound channels allocated for audio playback."),
         min = 16,
@@ -619,6 +547,7 @@ local function BuildAudioSubTab(scroll)
         disabled = function() return not IsEnabled("video_options") end,
         width = 240,
     })
+    CleanSlider(sc)
 
     C:AddToggle(engSection, {
         label = Text("ENABLE_HARDWARE", "Hardware Acceleration", "Hardware Acceleration"),
