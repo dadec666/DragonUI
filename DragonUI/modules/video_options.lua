@@ -61,17 +61,25 @@ local function SafeRestartGx()
 end
 
 local function SafeL(key)
-    if not L or not key then return nil end
-    local val = rawget(L, key)
-    if val ~= nil then return val end
+    if not key then return nil end
+    if L then
+        local val = L[key]
+        if val ~= nil and val ~= true and val ~= key then
+            return val
+        end
+    end
     local AceLocale = LibStub and LibStub("AceLocale-3.0-DragonUI", true)
     if AceLocale and AceLocale.apps and AceLocale.apps["DragonUI"] then
         local app = AceLocale.apps["DragonUI"]
-        local gameLocale = (GetLocale and GetLocale()) or "enUS"
+        local gameLocale = (addon.GetActiveLocale and addon.GetActiveLocale()) or (GetLocale and GetLocale()) or "enUS"
         local curTbl = rawget(app, gameLocale)
-        if curTbl and rawget(curTbl, key) ~= nil then return rawget(curTbl, key) end
+        if curTbl and curTbl[key] ~= nil and curTbl[key] ~= true then
+            return curTbl[key]
+        end
         local defTbl = rawget(app, "enUS")
-        if defTbl and rawget(defTbl, key) ~= nil then return rawget(defTbl, key) end
+        if defTbl and defTbl[key] ~= nil and defTbl[key] ~= true then
+            return defTbl[key]
+        end
     end
     return nil
 end
@@ -252,7 +260,7 @@ local function BuildGraphicsPanel(parent)
     end
 
     -- Display
-    AddHeader(Text("DISPLAY", "Display"))
+    AddHeader(SafeL("Display") or Text("DISPLAY", "Display"))
 
     -- Resolution Dropdown
     if GetScreenResolutions and GetCurrentResolution and SetScreenResolution then
@@ -275,9 +283,9 @@ local function BuildGraphicsPanel(parent)
     end
 
     AddDropdown(Text("DISPLAY_MODE", "Display Mode"), {
-        [1] = Text("VIDEO_OPTIONS_FULLSCREEN", "Fullscreen"),
-        [2] = Text("VIDEO_OPTIONS_WINDOWED", "Windowed"),
-        [3] = Text("VIDEO_OPTIONS_WINDOWED_FULLSCREEN", "Fullscreen (Windowed)"),
+        [1] = SafeL("Fullscreen") or Text("VIDEO_OPTIONS_FULLSCREEN", "Fullscreen"),
+        [2] = SafeL("Windowed") or Text("VIDEO_OPTIONS_WINDOWED", "Windowed"),
+        [3] = SafeL("Fullscreen (Windowed)") or Text("VIDEO_OPTIONS_WINDOWED_FULLSCREEN", "Fullscreen (Windowed)"),
     }, { 1, 2, 3 }, function()
         local win = SafeGetCVar("gxWindow", "0") == "1"
         local max = SafeGetCVar("gxMaximize", "0") == "1"
@@ -355,10 +363,10 @@ local function BuildGraphicsPanel(parent)
         SafeRestartGx()
     end)
 
-    local anisoText = Text("ANISOTROPIC", "Texture Filtering")
+    local anisoText = SafeL("Texture Filtering") or Text("ANISOTROPIC", "Texture Filtering")
     AddDropdown(anisoText, {
-        [1] = Text("BILINEAR", "Bilinear"),
-        [2] = Text("TRILINEAR", "Trilinear"),
+        [1] = SafeL("Bilinear") or Text("BILINEAR", "Bilinear"),
+        [2] = SafeL("Trilinear") or Text("TRILINEAR", "Trilinear"),
         [3] = "2x " .. anisoText,
         [4] = "4x " .. anisoText,
         [5] = "8x " .. anisoText,
@@ -556,7 +564,7 @@ local function BuildAudioPanel(parent)
         SafeSetCVar("Sound_EnableAllSound", val and "1" or "0")
     end)
 
-    AddCheckbox(Text("ENABLE_SOUNDFX", "Sound Effects"), function()
+    AddCheckbox(SafeL("Sound Effects") or Text("ENABLE_SFX", "Sound Effects"), function()
         return SafeGetCVar("Sound_EnableSFX") == "1"
     end, function(val)
         SafeSetCVar("Sound_EnableSFX", val and "1" or "0")
@@ -724,7 +732,13 @@ local function BuildKeybindingsPanel(parent)
                 end
             end
         end
-        return list
+        local filtered = {}
+        for _, cat in ipairs(list) do
+            if #cat.bindings > 0 and not string.find(cat.raw or "", "^BLANK") then
+                filtered[#filtered + 1] = cat
+            end
+        end
+        return filtered
     end
 
     local categoriesData = CollectCategories()
