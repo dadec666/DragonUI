@@ -1600,7 +1600,6 @@ function ForeverUI.SkinDropdownButton(target, opts)
         skin.slice = createSlice(back, "BACKGROUND")
         holder._fuSkin = skin
         if arrowButton then
-            arrowButton:SetParent(back)
             arrowButton:ClearAllPoints()
             skin.arrowButton = arrowButton
         end

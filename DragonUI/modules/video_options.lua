@@ -146,6 +146,9 @@ local function SkinNativePanel(panel)
                 if FUI and FUI.SkinDropdownButton then
                     pcall(FUI.SkinDropdownButton, { dropdown = child, button = btn, text = text }, { style = "wow1" })
                 end
+                if btn:GetParent() ~= child then
+                    btn:SetParent(child)
+                end
             end
         end
 
@@ -675,6 +678,9 @@ local function BuildKeybindingsPanel(parent)
     if catRight then catRight:SetAlpha(0); catRight:Hide() end
     if FUI and FUI.SkinDropdownButton then
         pcall(FUI.SkinDropdownButton, { dropdown = catDropdown, button = catBtn, text = catText }, { style = "wow1" })
+    end
+    if catBtn and catBtn:GetParent() ~= catDropdown then
+        catBtn:SetParent(catDropdown)
     end
 
     local scroll = CreateFrame("ScrollFrame", "DragonUI_VideoKeybindScroll", container, "UIPanelScrollFrameTemplate")
