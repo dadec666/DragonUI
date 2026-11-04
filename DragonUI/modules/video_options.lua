@@ -95,6 +95,19 @@ local function SkinNativePanel(panel)
     if not panel or panel._dragonUISkinned then return end
     panel._dragonUISkinned = true
 
+    local panelName = panel.GetName and panel:GetName()
+    if panelName then
+        local title = _G[panelName .. "Title"]
+        if title then
+            if title.Hide then title:Hide() end
+            if title.SetAlpha then title:SetAlpha(0) end
+        end
+    end
+    if panel.title and panel.title ~= panelName and type(panel.title) == "table" then
+        if panel.title.Hide then panel.title:Hide() end
+        if panel.title.SetAlpha then panel.title:SetAlpha(0) end
+    end
+
     local function SkinElement(child)
         if not child then return end
         local objType = child.GetObjectType and child:GetObjectType()
@@ -171,10 +184,11 @@ local function BuildGraphicsPanel(parent)
     local function AddSlider(label, minVal, maxVal, step, getFunc, setFunc, fmt)
         local sl = FUI.CreateSlider(content, {
             label = label,
+            labelWidth = 220,
             min = minVal,
             max = maxVal,
             step = step,
-            width = 380,
+            width = 520,
             get = getFunc,
             set = setFunc,
             format = fmt,
@@ -411,12 +425,12 @@ local function BuildGraphicsPanel(parent)
         if cfg then cfg.farclip = val end
     end)
 
-    AddSlider(Text(nil, "Horizon Farclip Scale"), 1.0, 6.0, 0.5, function()
-        return tonumber(SafeGetCVar("horizonFarclipScale", "4.0")) or 4.0
+    AddSlider(Text("HORIZON_FARCLIP", "Horizon Farclip"), 500, 6000, 250, function()
+        return tonumber(SafeGetCVar("horizonfarclip", "2112")) or 2112
     end, function(val)
-        SafeSetCVar("horizonFarclipScale", val)
+        SafeSetCVar("horizonfarclip", val)
         local cfg = GetModuleConfig()
-        if cfg then cfg.horizonFarclipScale = val end
+        if cfg then cfg.horizonfarclip = val end
     end)
 
     AddSlider(Text("ENVIRONMENT_DETAIL", "Environment Detail"), 0.5, 1.5, 0.1, function()
@@ -427,7 +441,7 @@ local function BuildGraphicsPanel(parent)
         if cfg then cfg.environmentDetail = val end
     end)
 
-    AddSlider(Text("GROUND_EFFECT_DIST", "Ground Effect Distance"), 40, 140, 10, function()
+    AddSlider(Text("GROUND_EFFECT_DIST", "Ground Effect Distance"), 40, 500, 20, function()
         return tonumber(SafeGetCVar("groundEffectDist", "70")) or 70
     end, function(val)
         SafeSetCVar("groundEffectDist", val)
@@ -504,10 +518,11 @@ local function BuildAudioPanel(parent)
     local function AddSlider(label, minVal, maxVal, step, getFunc, setFunc)
         local sl = FUI.CreateSlider(content, {
             label = label,
+            labelWidth = 220,
             min = minVal,
             max = maxVal,
             step = step,
-            width = 380,
+            width = 520,
             get = getFunc,
             set = setFunc,
         })
@@ -524,7 +539,7 @@ local function BuildAudioPanel(parent)
         SafeSetCVar("Sound_EnableAllSound", val and "1" or "0")
     end)
 
-    AddCheckbox(Text("SOUND_EFFECTS", "Sound Effects"), function()
+    AddCheckbox(Text("ENABLE_SOUNDFX", "Sound Effects"), function()
         return SafeGetCVar("Sound_EnableSFX") == "1"
     end, function(val)
         SafeSetCVar("Sound_EnableSFX", val and "1" or "0")
@@ -1489,11 +1504,13 @@ function VideoOptionsModule:ApplySettings()
     if cfg.farclip then
         SafeSetCVar("farclip", cfg.farclip)
     end
-    if cfg.horizonFarclipScale then
-        SafeSetCVar("horizonFarclipScale", cfg.horizonFarclipScale)
+    if cfg.horizonfarclip then
+        SafeSetCVar("horizonfarclip", cfg.horizonfarclip)
     elseif cfg.horizonFarclip then
-        local scale = (type(cfg.horizonFarclip) == "number" and cfg.horizonFarclip > 10) and 4.0 or cfg.horizonFarclip
-        SafeSetCVar("horizonFarclipScale", scale)
+        SafeSetCVar("horizonfarclip", cfg.horizonFarclip)
+    elseif cfg.horizonFarclipScale then
+        local val = (type(cfg.horizonFarclipScale) == "number" and cfg.horizonFarclipScale > 10) and cfg.horizonFarclipScale or 2112
+        SafeSetCVar("horizonfarclip", val)
     end
     if cfg.groundEffectDist then
         SafeSetCVar("groundEffectDist", cfg.groundEffectDist)
